@@ -1,0 +1,3 @@
+# Technical Documentation for 3D Spatial Scene Understanding and Interactive Audio Guidance for Blind Users
+
+lipsum

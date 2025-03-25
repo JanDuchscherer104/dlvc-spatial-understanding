@@ -1,0 +1,31 @@
+---
+title: "Project Overview"
+format: html
+---
+
+# Project Overview
+
+## Introduction
+
+The "3D Spatial Scene Understanding and Interactive Audio Guidance for Blind Users" application aims to enhance navigation for visually impaired individuals by leveraging advanced spatial scene understanding techniques and interactive audio guidance. This project integrates depth estimation, object detection, and spatial mapping to create a comprehensive understanding of the user's environment.
+
+## Goals
+
+- Develop a robust system for real-time 3D spatial scene understanding.
+- Implement interactive audio guidance that provides users with contextual information about their surroundings.
+- Ensure the application is user-friendly and accessible for blind users.
+
+## Methods
+
+1. **Depth Estimation**: Utilizing computer vision techniques to estimate depth from images, enabling the system to understand the spatial layout of the environment.
+2. **Object Detection**: Implementing algorithms to identify and locate objects within the scene, which is crucial for safe navigation.
+3. **Spatial Mapping**: Creating spatial maps that represent the environment based on detected objects and depth information.
+4. **Audio Guidance**: Generating spatial audio cues that guide users through their environment, enhancing their ability to navigate independently.
+
+## Outcomes
+
+The project is expected to deliver a functional prototype that demonstrates the effectiveness of combining 3D spatial understanding with audio guidance. User testing will be conducted to gather feedback and refine the application further.
+
+## Future Work
+
+Future iterations of the project will focus on improving the accuracy of the scene understanding algorithms, expanding the range of audio cues, and conducting extensive user testing to ensure the application meets the needs of blind users effectively.

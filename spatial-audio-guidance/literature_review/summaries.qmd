@@ -1,0 +1,36 @@
+---
+title: "Literature Review Summaries"
+author: "Your Name"
+date: "`r Sys.Date()`"
+format: html
+---
+
+# Summaries of Relevant Literature
+
+This document provides summaries of the key literature reviewed for the "3D Spatial Scene Understanding and Interactive Audio Guidance for Blind Users" project. Each summary highlights the main contributions and findings of the respective papers.
+
+## Paper 1: Title of the Paper
+
+- **Authors**: Author A, Author B
+- **Published in**: Journal/Conference Name, Year
+- **Summary**: Brief summary of the paper's contributions, methodologies, and findings.
+
+## Paper 2: Title of the Paper
+
+- **Authors**: Author C, Author D
+- **Published in**: Journal/Conference Name, Year
+- **Summary**: Brief summary of the paper's contributions, methodologies, and findings.
+
+## Paper 3: Title of the Paper
+
+- **Authors**: Author E, Author F
+- **Published in**: Journal/Conference Name, Year
+- **Summary**: Brief summary of the paper's contributions, methodologies, and findings.
+
+## Additional Papers
+
+- Continue summarizing additional relevant papers in a similar format.
+
+## Conclusion
+
+The reviewed literature provides a solid foundation for the development of the spatial scene understanding and audio guidance system. Insights gained from these studies will inform the design and implementation of our application, ensuring it meets the needs of blind users effectively.

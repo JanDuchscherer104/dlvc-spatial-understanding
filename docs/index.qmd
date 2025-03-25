@@ -1,0 +1,19 @@
+---
+title: "3D Spatial Scene Understanding and Interactive Audio Guidance"
+---
+
+Welcome to the documentation for the 3D Spatial Scene Understanding and Interactive Audio Guidance project for blind users.
+
+## Project Overview
+
+This project aims to develop a comprehensive application for 3D spatial scene understanding and interactive audio guidance tailored for blind users. By leveraging advanced techniques in depth estimation, object detection, and spatial audio rendering, the application seeks to enhance navigation and interaction in various environments.
+
+## Documentation Structure
+
+- [Literature Review](literature/summaries.qmd): Review of relevant research papers and findings
+- [Technical Documentation](technical/overview.qmd): Architecture and implementation details
+- [Evaluation](evaluation/quantitative/accuracy.qmd): Results from qualitative and quantitative testing
+
+## Getting Started
+
+For installation and usage instructions, please refer to our [User Guide](technical/user_guide.qmd).

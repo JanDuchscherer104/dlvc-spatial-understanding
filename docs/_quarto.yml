@@ -1,0 +1,19 @@
+project:
+  type: book
+
+book:
+  title: "3D Spatial Scene Understanding"
+  subtitle: "Deep Learning in Visual Computing"
+  date: "today"
+  date-format: long
+  chapters:
+    - index.qmd
+    - project_overview.qmd
+    - technical_docs.qmd
+    - usage_examples.qmd
+  page-navigation: true
+
+format:
+  html:
+    theme: cosmo
+    toc: true

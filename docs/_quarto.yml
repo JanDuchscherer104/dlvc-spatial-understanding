@@ -9,6 +9,7 @@ book:
   chapters:
     - index.qmd
     - project_overview.qmd
+    - questions.qmd
     - technical_docs.qmd
     - usage_examples.qmd
   page-navigation: true

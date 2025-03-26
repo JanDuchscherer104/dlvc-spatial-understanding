@@ -37,7 +37,9 @@ _site/
 *_files/
 *.html
 /_freeze/
+*_book/
 .ipynb_checkpoints
 
 # Project specific
 diary/
+.instructions

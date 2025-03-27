@@ -43,3 +43,4 @@ _site/
 # Project specific
 diary/
 .instructions
+.DS_Store

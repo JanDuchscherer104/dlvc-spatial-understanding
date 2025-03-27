@@ -1,5 +1,7 @@
 import unittest
-from src.scene_understanding.object_detection import ObjectDetector
+
+from spatial_guidance.scene_understanding.object_detection import ObjectDetector
+
 
 class TestObjectDetection(unittest.TestCase):
 
@@ -21,5 +23,6 @@ class TestObjectDetection(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.detector.detect(None)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

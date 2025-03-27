@@ -1,8 +1,11 @@
 import unittest
-from src.scene_understanding.object_detection import ObjectDetection
-from src.scene_understanding.depth_estimation import DepthEstimation
-from src.audio_guidance.audio_generator import AudioGenerator
+
 from src.audio_guidance.spatial_audio import SpatialAudio
+
+from spatial_guidance.audio_guidance.audio_generator import AudioGenerator
+from spatial_guidance.scene_understanding.depth_estimation import DepthEstimation
+from spatial_guidance.scene_understanding.object_detection import ObjectDetection
+
 
 class TestIntegration(unittest.TestCase):
 
@@ -40,5 +43,6 @@ class TestIntegration(unittest.TestCase):
         self.assertIsNotNone(audio_output)
         self.assertTrue(isinstance(audio_output, bytes))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

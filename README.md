@@ -20,4 +20,12 @@ cd spatial-audio-guidance
 pip install -e spatial-audio-guidance
 ```
 
+[Create a Gemini API key](https://aistudio.google.com/app/apikey) and add it to the `.env` file.
+[Create an OpenAI API key](https://platform.openai.com/api-keys) and add it to the `.env` file.
+
+```bash
+GOOGLE_API_KEY=<your-api-key>
+OPENAI_API_KEY=sk-<...>
+```
+
 ## Usage

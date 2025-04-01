@@ -123,12 +123,6 @@
     \item Get Gemini 2.0 flash via API running.
 \end{itemize}
 
-\textbf{Optional:}
-\begin{itemize}
-    \item Combination of depth data w/ detections.
-    \item Grobe Überlegungen zur Modellarchitektur.
-    \item Explore potential network architectures.
-\end{itemize}
 \end{frame}
 
 % Placeholder for next meetings
@@ -140,21 +134,42 @@
 \framedate{01.04.2025}
 \begin{frame}{Update Meeting 2 --- Tasks Worked On}
 \begin{itemize}
-  \item \ldots
+  \item \textbf{SpatialBot}: VLM fine-tuned on \textbf{RGB-D} data for better 3D understanding~\cite{cai2025spatialbotprecisespatialunderstanding}.
+  \begin{itemize}
+  \item \( \oplus \) approx. 3B param model.
+  \item \( \oplus \) Can explicitly query depth values.
+  \item \( \ominus \) no support for multiple video frames.
+  \item \( \ominus \) doesn't use camera poses, operates on single images.
+  %   \item \textit{SpatialBench} for evaluating VLMs spatial understanding.
+  %   \item \textit{SpatialQA}: Question answering dataset given RGB-D data.
+  \end{itemize}
+  \item \textbf{Video-3D LLM}: 3D spatial understanding - depth information \( \rightarrow \) 3D Pos-Encodings.
+  \begin{itemize}
+    \item \( \oplus \) multiple video frames + camera poses as input.
+    \item \( \ominus \) no explicit detections or querying of depth values.
+  \end{itemize}
 \end{itemize}
 \end{frame}
 
 \framedate{01.04.2025}
 \begin{frame}{Update Meeting 2 --- Problems Encountered}
 \begin{itemize}
-  \item \ldots
+  \item Ambiguities w.r.t.\ project stages.
+  \begin{itemize}
+    \item Improved visual understanding incorporating depth data?
+    \item Route description via dynamic scene graph?
+  \end{itemize}
+  \item No literature on route description based on RGB-D data.
+  \item Focus on downstream application using Gemini Spatial Understanding?
 \end{itemize}
 \end{frame}
 
 \framedate{01.04.2025}
 \begin{frame}{Update Meeting 2 --- Plans for Next Week}
-\begin{itemize}
-  \item \ldots
+  \begin{itemize}
+    \item Combination of depth data w/ detections.
+    \item Grobe Überlegungen zur Modellarchitektur.
+    \item Explore potential network architectures.
 \end{itemize}
 \end{frame}
 

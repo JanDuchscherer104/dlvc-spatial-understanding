@@ -44,3 +44,14 @@ _site/
 diary/
 .instructions
 .DS_Store
+
+# LaTeX
+slides/tex/output/*
+!slides/tex/output/*.pdf
+# slides/tex/sample.aux
+# slides/tex/sample.bbl
+# slides/tex/sample.log
+# slides/tex/sample.nav
+# slides/tex/sample.pdf
+# slides/tex/sample.snm
+# slides/tex/sample.toc

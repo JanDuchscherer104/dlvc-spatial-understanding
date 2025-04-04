@@ -6,6 +6,7 @@ ipython>=9.0.2
 ######################
 langchain>=0.3.21
 # data validation and settings management
+langchain-google-genai
 pydantic>=2.10.6
 # parsing API keys from .env
 python-dotenv>=1.1.0
@@ -14,8 +15,15 @@ rich>=13.9.4
 #####################
 # Speech To Text
 torch >= 2.6.0
-ffmpeg-python >= 0.2.0
+# ffmpeg-python >= 0.2.0
 git+https://github.com/openai/whisper.git
 #####################
 # OpenAI
 openai>=1.68.2
+# StrayVis
+# open3d via `conda install -c conda-forge open3d`
+scipy>=1.15.2
+scikit-video>=1.1.11
+# pillow>=11.2
+matplotlib
+opencv-python

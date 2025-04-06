@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Type
+from dataclasses import dataclass
+from typing import List, Optional, Tuple, Type
 
 import numpy as np
 from pydantic import Field
@@ -9,12 +10,15 @@ from utils import CONSOLE, BaseConfig
 
 CONSOLE.log("[red] This is red text[/red]")
 
-
+@dataclass
 class Data:
     rgb_frame: np.ndarray
     depth_frame: np.ndarray
     semantic_map: Optional[np.ndarray] = None
-
+    bounding_boxes: Optional[List[Tuple[int, int, int, int]]] = None 
+    labels: Optional[List[str]] = None
+    prompt: Optional[str] = None
+    gemini_response: Optional[str] = None
 
 class PreprocessingStage:
     """
@@ -52,7 +56,7 @@ class ZeroShotModelConfig(BaseConfig["ZeroShotModel"]):
     target: Type["ZeroShotModel"] = Field(default_factory=lambda: ZeroShotModel)
 
 
-class ZeroShotModel(ABC, PipelineStage): ...
+class ZeroShotModel(PipelineStage): ...
 
 
 class ZeroShotDetectionModel: ...

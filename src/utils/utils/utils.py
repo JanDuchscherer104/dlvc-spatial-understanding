@@ -14,6 +14,7 @@ from typing import (
     TypeVar,
 )
 
+from devtools import pformat
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rich.console import Console as RichConsole
 from rich.text import Text
@@ -68,6 +69,10 @@ class _Console(RichConsole):
     def log(self, message: str) -> None:
         if self.verbose:
             self.print(message)
+
+    def plog(self, obj: Any, **kwargs) -> None:
+        """Pretty print an object using rich."""
+        self.log(pformat(obj, **kwargs))
 
     def set_verbose(self, verbose: bool) -> None:
         self.verbose = verbose

@@ -1,21 +1,25 @@
 """Dataset class for StrayScanner data focusing on essential functionality."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import List, Optional, Tuple, Type
 
 import cv2
 import numpy as np
 import open3d as o3d
 import skvideo.io
+from click import prompt
 from PIL import Image
 from pydantic import Field
+from sympy import use
 
 from utils import CONSOLE, BaseConfig
 
+from ...pipeline.data_contracts import DataSetOut, PipelineIn
+from ...pipeline.pipeline_stage import PipelineStage, PipelineStageConfig
 from .data_parser import StrayScannerDataParserConfig
 
 
-class StrayDatasetConfig(BaseConfig["StrayDataset"]):
+class StrayDatasetConfig(PipelineStageConfig["StrayDataset"]):
     """Configuration for StrayScanner dataset."""
 
     target: Type["StrayDataset"] = Field(default_factory=lambda: StrayDataset)
@@ -43,8 +47,11 @@ class StrayDatasetConfig(BaseConfig["StrayDataset"]):
 
     depth_hw: Tuple[int, int] = (192, 256)
 
+    def setup_target(self) -> "StrayDataset":
+        return self.target(self)
 
-class StrayDataset:
+
+class StrayDataset(PipelineStage[PipelineIn, DataSetOut]):
     """Dataset class for StrayScanner data with minimal but essential functionality."""
 
     def __init__(self, config: StrayDatasetConfig):
@@ -53,7 +60,9 @@ class StrayDataset:
         Args:
             config: Configuration for the dataset.
         """
+        super().__init__(config=config)
         self.config = config
+
         self.parser = self.config.data_parser_config.target(
             self.config.data_parser_config
         )
@@ -63,6 +72,13 @@ class StrayDataset:
         self._rgb_frames: Optional[List[Path]] = None
         self._depth_frames: Optional[List[Path]] = None
 
+    def entrypoint(self, input_data: PipelineIn) -> DataSetOut:
+        return DataSetOut(
+            rgb_image=Image.fromarray(self.get_rgb(input_data.idx)),
+            depth_image=Image.fromarray(self.get_depth(input_data.idx)),
+            user_prompt=input_data.user_prompt,
+        )
+
     def get_rgb_dimensions(self) -> Tuple[int, int]:
         """Get the dimensions of RGB images (height, width).
 
@@ -71,7 +87,7 @@ class StrayDataset:
         """
         # Get RGB dimensions from any RGB frame
         if self._rgb_frames is None:
-            self._rgb_frames = self.parser.get_rgb_frames()
+            self._rgb_frames = self.parser.get_available_rgb_frames()
             if not self._rgb_frames:
                 raise ValueError("No RGB frames found in the dataset")
 
@@ -81,7 +97,12 @@ class StrayDataset:
             raise FileNotFoundError(f"RGB file not found: {rgb_path}")
         rgb = np.array(Image.open(rgb_path))
         rgb_height, rgb_width = rgb.shape[:2]
-        if self.config.is_rotated:
+
+        # Check if the image is from rotated directory
+        is_from_rotated = str(self.parser.config.paths.get_rgb_rotated_dir()) in str(
+            rgb_path
+        )
+        if self.config.is_rotated and not is_from_rotated:
             # Swap height and width if rotated
             rgb_height, rgb_width = rgb_width, rgb_height
         return rgb_height, rgb_width
@@ -141,7 +162,7 @@ class StrayDataset:
         scale_factor = self.config.scale_factor
         if self.config.auto_scale_poses:
             positions = np.array([pose[:3, 3] for pose in poses])
-            max_extent = np.max(np.abs(positions))
+            max_extent = np.max(np.abs(positions))  # type: ignore
             if max_extent > 0:
                 scale_factor /= max_extent
 
@@ -161,15 +182,18 @@ class StrayDataset:
         Returns:
             RGB image as a numpy array.
         """
-
-        # Get rgb frames
-        rgb_frames = self.parser.get_rgb_frames()
+        # Get available rgb frames (will check both regular and rotated)
+        rgb_frames = self.parser.get_available_rgb_frames()
 
         # Try individual RGB frames first if available
         if rgb_frames and idx < len(rgb_frames):
             rgb_path = rgb_frames[idx]
             if rgb_path.exists():
                 rgb = np.array(Image.open(rgb_path))
+                # Check if the image is from rotated directory
+                is_from_rotated = str(
+                    self.parser.config.paths.get_rgb_rotated_dir()
+                ) in str(rgb_path)
             else:
                 raise FileNotFoundError(f"RGB file not found: {rgb_path}")
         else:
@@ -189,9 +213,10 @@ class StrayDataset:
             if frame is None:
                 raise IndexError(f"Frame {idx} not found in video")
             rgb = frame
+            is_from_rotated = False
 
-        # Rotate if necessary
-        if self.config.is_rotated:
+        # Rotate if necessary - only rotate if it's not from the rotated directory and rotation is enabled
+        if self.config.is_rotated and not is_from_rotated:
             # Rotate 90 degrees clockwise
             rgb = cv2.rotate(rgb, cv2.ROTATE_90_CLOCKWISE)
 

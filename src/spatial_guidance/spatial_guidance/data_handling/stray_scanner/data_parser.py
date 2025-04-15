@@ -129,6 +129,21 @@ class StrayScannerDataParser:
 
         return self._imu_data.copy() if self._imu_data is not None else None
 
+    def get_available_rgb_frames(self) -> List[Path]:
+        """Get all available RGB frame paths, falling back to rotated frames if regular ones are missing.
+
+        Returns:
+            List of paths to available RGB frames.
+        """
+        # First try regular RGB frames
+        rgb_frames = self.get_rgb_frames()
+
+        # If no regular RGB frames, try rotated RGB frames
+        if not rgb_frames:
+            rgb_frames = self.get_rgb_rotated_frames()
+
+        return rgb_frames
+
     def get_rgb_frames(self) -> List[Path]:
         """Get all RGB frame paths sorted."""
         if self._rgb_frames is None:
@@ -136,12 +151,18 @@ class StrayScannerDataParser:
             if not rgb_dir.exists():
                 CONSOLE.warn(
                     f"[red]RGB directory {rgb_dir} does not exist. "
-                    "Falling back to RGB video."
+                    "Will attempt to use rotated RGB frames."
                 )
-                return []
-            self._rgb_frames = sorted(
-                rgb_dir.glob(f"*{self.config.paths.rgb_extension}")
-            )
+                self._rgb_frames = []
+            else:
+                self._rgb_frames = sorted(
+                    rgb_dir.glob(f"*{self.config.paths.rgb_extension}")
+                )
+                if not self._rgb_frames:
+                    CONSOLE.warn(
+                        f"[red]No RGB frames found in {rgb_dir}. "
+                        "Will attempt to use rotated RGB frames."
+                    )
 
         return self._rgb_frames
 
@@ -206,3 +227,19 @@ class StrayScannerDataParser:
         depth_m = depth_mm.astype(np.float32) * self.config.depth_unit_scale_factor
 
         return depth_m
+
+    def get_pose(self, idx: int) -> np.ndarray:
+        """Get pose for a specific frame.
+
+        Args:
+            idx: Frame index.
+
+        Returns:
+            4x4 transformation matrix.
+        """
+        poses = self.get_poses()
+        if idx >= len(poses):
+            raise IndexError(
+                f"Pose index {idx} out of range (found {len(poses)} poses)"
+            )
+        return poses[idx]

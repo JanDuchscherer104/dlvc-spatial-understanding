@@ -6,7 +6,6 @@ ipython>=9.0.2
 ######################
 langchain>=0.3.21
 # data validation and settings management
-langchain-google-genai
 pydantic>=2.10.6
 # parsing API keys from .env
 python-dotenv>=1.1.0
@@ -27,3 +26,6 @@ scikit-video>=1.1.11
 # pillow>=11.2
 matplotlib
 opencv-python
+# ZenML
+# zenml>=0.80.1
+zenml[server]>=0.80.1

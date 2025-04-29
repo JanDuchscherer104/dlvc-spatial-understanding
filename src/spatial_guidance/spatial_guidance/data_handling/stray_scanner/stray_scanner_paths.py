@@ -10,7 +10,7 @@ from utils import CONSOLE, BaseConfig, PathConfig
 class StrayScannerPaths(BaseConfig):
     """Configuration for Stray Scanner dataset paths."""
 
-    dataset_dir: Annotated[Path, Field(default="SmartAIs Recorded Data/5")]
+    dataset_dir: Annotated[Path, Field(default="SmartAIs Recorded Data/baustelle")]
     """Root directory of the Stray Scanner dataset."""
 
     rgb_video_filename: str = "rgb.mp4"
@@ -82,7 +82,7 @@ class StrayScannerPaths(BaseConfig):
     @classmethod
     def validate_dataset_dir(cls, v: str | Path, info: ValidationInfo) -> Path:
         if isinstance(v, str) or isinstance(v, Path) and not Path(v).is_absolute():
-            pth = PathConfig().data / v
+            pth = PathConfig().root / ".data" / v
         else:
             pth = Path(v)
         assert pth.exists(), f"Dataset root directory {pth} does not exist."

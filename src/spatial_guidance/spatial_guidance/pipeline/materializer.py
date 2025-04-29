@@ -62,6 +62,8 @@ class PydanticNumpyMaterializer(BaseMaterializer):
                 file_path = Path(self.uri) / file_name
 
                 with self.artifact_store.open(str(file_path), "wb") as f:
+                    if value.mode == "F":
+                        value = value.convert("I")
                     value.save(f, format="PNG")
 
                 meta[field] = {
@@ -112,13 +114,27 @@ class PydanticNumpyMaterializer(BaseMaterializer):
                 with self.artifact_store.open(str(file_path), "rb") as f:
                     if value.get("type") == "pil" or value["file"].endswith(".png"):
                         img = Image.open(f)
+                        img.load()  # Force loading pixel data after opening
                         # Keep as PIL or convert based on original type
                         data_fields[field] = (
                             np.array(img) if value.get("type") == "numpy" else img
                         )
-                    else:
+                    elif value.get("type") == "numpy" and value["file"].endswith(
+                        ".npy"
+                    ):
                         # Load .npy file
                         data_fields[field] = np.load(f, allow_pickle=False)
+                    else:
+                        # Fallback or handle other types if necessary
+                        # For now, assume it might be an image if it's a file
+                        try:
+                            img = Image.open(f)
+                            img.load()  # Force loading pixel data after opening
+                            data_fields[field] = img
+                        except Exception:
+                            # If it's not an image or npy, maybe load raw bytes or raise error
+                            # For simplicity, skipping for now
+                            pass
             else:
                 # Simple field
                 data_fields[field] = value

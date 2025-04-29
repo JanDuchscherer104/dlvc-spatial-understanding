@@ -1,5 +1,6 @@
 """Data models for pipeline data exchange between stages."""
 
+from pathlib import Path
 from typing import Any, List, Literal, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
@@ -45,6 +46,44 @@ class DataModel(BaseModel):
 
         # Create new instance with extracted data
         return cls(**extracted_data)
+
+    @classmethod
+    def load_from_artifact_dir(cls, artifact_dir: Union[str, Path]) -> "DataModel":
+        """
+        Load a DataModel instance from a ZenML artifact directory containing `data.json` and associated files.
+
+        Args:
+            artifact_dir: Path to the artifact directory
+
+        Returns:
+            An instance of the DataModel subclass with fields populated from stored files.
+        """
+        import json
+        from pathlib import Path
+
+        import numpy as np
+        from PIL import Image
+
+        artifact_dir = Path(artifact_dir)
+        meta_path = artifact_dir / "data.json"
+        with open(meta_path, "r") as f:
+            meta = json.load(f)
+
+        data_fields: dict = {}
+        for field, value in meta.items():
+            if isinstance(value, dict) and "file" in value:
+                file_path = artifact_dir / value["file"]
+                # Load image
+                if value.get("type") == "pil" or value["file"].endswith(".png"):
+                    img = Image.open(file_path)
+                    data_fields[field] = img
+                else:
+                    # Load numpy array
+                    data_fields[field] = np.load(file_path, allow_pickle=False)
+            else:
+                data_fields[field] = value
+
+        return cls(**data_fields)
 
 
 class PipelineIn(DataModel):
@@ -99,7 +138,7 @@ class DetectedObject(DataModel):
     )
 
 
-class DetectionStageOutput(DataModel):
+class DetectionStageOut(DataModel):
     """Complete analysis of a scene for navigation assistance."""
 
     objects: List[DetectedObject] = Field(
@@ -176,10 +215,10 @@ class VisualizationIn(DataModel):
 
     rgb_image: Image
     depth_image: Image
-    detection_output: DetectionStageOutput
+    detection_output: DetectionStageOut
 
 
-class VisualizationOutput(DataModel):
+class VisualizationOut(DataModel):
     """Output from the visualization stage."""
 
     visualization: Image
@@ -221,3 +260,138 @@ class RefinementStageOutput(DataModel):
     path_recommendation: Optional[str] = Field(
         None, description="Recommended path through the scene if applicable"
     )
+
+
+# ===== UNIT TESTS FOR DataModel CLASSES INCLUDING ParFlip USAGE =====
+
+import io
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import numpy as np
+from PIL import Image
+
+
+class TestDataModel(unittest.TestCase):
+    def test_from_no_args_creates_empty_instance(self):
+        class TestModel(DataModel):
+            a: int = 1
+            b: str = "default"
+
+        instance = TestModel.from_()
+        self.assertEqual(instance.a, 1)
+        self.assertEqual(instance.b, "default")
+
+    def test_from_merges_fields_from_multiple_models(self):
+        class TestModel(DataModel):
+            a: int
+            b: str
+
+        m1 = TestModel(a=1, b="one")
+        m2 = TestModel(a=2, b="two")
+        merged = TestModel.from_(m1, m2)
+        self.assertEqual(merged.a, 2)  # last takes precedence
+        self.assertEqual(merged.b, "two")
+
+    def test_from_ignores_fields_not_in_target(self):
+        class SourceModel(DataModel):
+            a: int
+            c: float
+
+        class TargetModel(DataModel):
+            a: int
+            b: str = "default"
+
+        source = SourceModel(a=5, c=3.14)
+        target = TargetModel.from_(source)
+        self.assertEqual(target.a, 5)
+        self.assertEqual(target.b, "default")
+
+    def test_load_from_artifact_dir_loads_json_and_files(self):
+        # Setup temporary directory with data.json and dummy files
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            # Prepare dummy numpy array and save
+            np_array = np.array([1, 2, 3])
+            np_file = tmp_path / "array.npy"
+            np.save(np_file, np_array)
+
+            # Prepare dummy image and save
+            img = Image.new("RGB", (10, 10), color="red")
+            img_file = tmp_path / "image.png"
+            img.save(img_file)
+
+            # Create data.json metadata
+            meta = {
+                "field1": 123,
+                "field2": {"file": "array.npy", "type": "numpy"},
+                "field3": {"file": "image.png", "type": "pil"},
+            }
+            meta_file = tmp_path / "data.json"
+            with open(meta_file, "w") as f:
+                json.dump(meta, f)
+
+            class TestModel(DataModel):
+                field1: int
+                field2: np.ndarray
+                field3: Image.Image
+
+            loaded = TestModel.load_from_artifact_dir(tmp_path)
+            self.assertEqual(loaded.field1, 123)
+            np.testing.assert_array_equal(loaded.field2, np_array)
+            self.assertIsInstance(loaded.field3, Image.Image)
+            self.assertEqual(loaded.field3.size, (10, 10))
+
+    def test_load_from_artifact_dir_handles_missing_file_type_assumed_pil(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            img = Image.new("RGB", (5, 5), color="blue")
+            img_file = tmp_path / "pic.png"
+            img.save(img_file)
+
+            meta = {"image_field": {"file": "pic.png"}}
+            meta_file = tmp_path / "data.json"
+            with open(meta_file, "w") as f:
+                json.dump(meta, f)
+
+            class TestModel(DataModel):
+                image_field: Image.Image
+
+            loaded = TestModel.load_from_artifact_dir(tmp_path)
+            self.assertIsInstance(loaded.image_field, Image.Image)
+            self.assertEqual(loaded.image_field.size, (5, 5))
+
+
+class TestParFlipUsage(unittest.TestCase):
+    """Example tests demonstrating ParFlip usage for isolated tests."""
+
+    def test_parflip_isolation(self):
+        # ParFlip is a tool to run tests in isolated processes.
+        # Here we demonstrate its usage by running a simple test function.
+
+        import parflip
+
+        def test_func():
+            # This function runs in isolated process
+            self.assertEqual(1 + 1, 2)
+
+        result = parflip.run(test_func)
+        self.assertTrue(result.success)
+
+    def test_parflip_with_data_model(self):
+        import parflip
+
+        def test_data_model_creation():
+            obj = PipelineIn(idx=42, user_prompt="test")
+            assert obj.idx == 42
+            assert obj.user_prompt == "test"
+
+        result = parflip.run(test_data_model_creation)
+        self.assertTrue(result.success)
+
+
+if __name__ == "__main__":
+    unittest.main()

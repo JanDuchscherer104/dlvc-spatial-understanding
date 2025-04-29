@@ -1,5 +1,16 @@
 from enum import Enum, auto
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Type, Union
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+)
 
 import numpy as np
 from google import genai
@@ -11,7 +22,7 @@ from zenml import step
 
 from utils import CONSOLE, BaseConfig, PathConfig
 
-from ..pipeline.data_contracts import DataSetOut, DetectionStageOutput
+from ..pipeline.data_contracts import DataSetOut, DetectionStageOut
 from ..pipeline.pipeline_stage import PipelineStage, PipelineStageConfig
 
 
@@ -90,8 +101,8 @@ class GeminiVLMDetectionConfig(PipelineStageConfig["GeminiVLMDetection"]):
     )
 
     # Output type for structured parsing
-    output_type: Type[DetectionStageOutput] = Field(
-        default=DetectionStageOutput,
+    output_type: Type[DetectionStageOut] = Field(
+        default=DetectionStageOut,
         description="Pydantic model to use for structured output parsing",
     )
 
@@ -103,18 +114,19 @@ class GeminiVLMDetectionConfig(PipelineStageConfig["GeminiVLMDetection"]):
         ]
 
 
-class GeminiVLMDetection(PipelineStage[DataSetOut, DetectionStageOutput]):
+class GeminiVLMDetection(PipelineStage[DataSetOut, DetectionStageOut]):
     """Detection model using Google's Gemini multimodal model with structured output parsing.
 
     Inherits from PipelineStage with explicitly defined input and output types.
     """
 
-    def __init__(self, config: GeminiVLMDetectionConfig):
+    def __init__(self, config: Optional[GeminiVLMDetectionConfig] = None):
         """Initialize the Gemini VLM detection model.
 
         Args:
             config: Configuration for the detection model
         """
+        config = config or GeminiVLMDetectionConfig()
         super().__init__(config=config)
         self.config = config
 
@@ -124,7 +136,9 @@ class GeminiVLMDetection(PipelineStage[DataSetOut, DetectionStageOutput]):
         # Initialize the Google GenAI client
         CONSOLE.log(f"Initialized Gemini detector with model: {self.config.model_name}")
 
-    def entrypoint(self, input_data: DataSetOut) -> DetectionStageOutput:
+    def entrypoint(
+        self, input_data: DataSetOut
+    ) -> Annotated[DetectionStageOut, "Detection-Results"]:
         """Process a frame through the detection model.
 
         Args:
@@ -138,7 +152,7 @@ class GeminiVLMDetection(PipelineStage[DataSetOut, DetectionStageOutput]):
 
     def _detect(
         self, rgb_image, user_prompt: Optional[str] = None
-    ) -> DetectionStageOutput:
+    ) -> DetectionStageOut:
         """
         Detect objects and analyze a scene using Gemini.
 

@@ -5,12 +5,10 @@ from typing import List, Optional, Tuple, Type
 
 import cv2
 import numpy as np
-import open3d as o3d
-import skvideo.io
-from click import prompt
+
+# import open3d as o3d
 from PIL import Image
 from pydantic import Field
-from sympy import use
 
 from utils import CONSOLE, BaseConfig
 
@@ -54,18 +52,19 @@ class StrayDatasetConfig(PipelineStageConfig["StrayDataset"]):
 class StrayDataset(PipelineStage[PipelineIn, DataSetOut]):
     """Dataset class for StrayScanner data with minimal but essential functionality."""
 
-    def __init__(self, config: StrayDatasetConfig):
+    def __init__(self, config: Optional[StrayDatasetConfig] = None):
         """Initialize the dataset.
 
         Args:
             config: Configuration for the dataset.
         """
-        super().__init__(config=config)
+        if config is None:
+            CONSOLE.warn("No config provided for StrayDataset, using default config.")
+            config = StrayDatasetConfig()
         self.config = config
+        super().__init__(config=config)
 
-        self.parser = self.config.data_parser_config.target(
-            self.config.data_parser_config
-        )
+        self.parser = self.config.data_parser_config.setup_target()
 
         # Cache containers
         self._poses_cache: Optional[List[np.ndarray]] = None
@@ -197,23 +196,24 @@ class StrayDataset(PipelineStage[PipelineIn, DataSetOut]):
             else:
                 raise FileNotFoundError(f"RGB file not found: {rgb_path}")
         else:
-            # Try loading from video
-            rgb_video_path = self.parser.config.paths.get_rgb_video_path()
-            if not rgb_video_path.exists():
-                raise FileNotFoundError(f"No RGB data found for frame {idx}")
+            # # Try loading from video
+            # rgb_video_path = self.parser.config.paths.get_rgb_video_path()
+            # if not rgb_video_path.exists():
+            #     raise FileNotFoundError(f"No RGB data found for frame {idx}")
 
-            # Find the frame in the video
-            frame = None
-            video = skvideo.io.vreader(str(rgb_video_path))
-            for i, current_frame in enumerate(video):
-                if i == idx:
-                    frame = current_frame
-                    break
+            # # Find the frame in the video
+            # frame = None
+            # video = skvideo.io.vreader(str(rgb_video_path))
+            # for i, current_frame in enumerate(video):
+            #     if i == idx:
+            #         frame = current_frame
+            #         break
 
-            if frame is None:
-                raise IndexError(f"Frame {idx} not found in video")
-            rgb = frame
-            is_from_rotated = False
+            # if frame is None:
+            #     raise IndexError(f"Frame {idx} not found in video")
+            # rgb = frame
+            # is_from_rotated = False
+            raise ValueError("Loading RGB frames from video is not supported. ")
 
         # Rotate if necessary - only rotate if it's not from the rotated directory and rotation is enabled
         if self.config.is_rotated and not is_from_rotated:
@@ -263,32 +263,32 @@ class StrayDataset(PipelineStage[PipelineIn, DataSetOut]):
 
         return depth_m
 
-    def get_rgbd(self, idx: int) -> o3d.geometry.RGBDImage:
-        """Get RGBD image for a specific frame.
+    # def get_rgbd(self, idx: int) -> o3d.geometry.RGBDImage:
+    #     """Get RGBD image for a specific frame.
 
-        Args:
-            idx: Frame index.
+    #     Args:
+    #         idx: Frame index.
 
-        Returns:
-            Open3D RGBD image.
-        """
-        rgb = self.get_rgb(idx)
-        depth = self.get_depth(idx)
+    #     Returns:
+    #         Open3D RGBD image.
+    #     """
+    #     rgb = self.get_rgb(idx)
+    #     depth = self.get_depth(idx)
 
-        # Get depth dimensions
-        depth_height, depth_width = depth.shape[:2]
+    #     # Get depth dimensions
+    #     depth_height, depth_width = depth.shape[:2]
 
-        # Resize RGB to match depth dimensions
-        rgb_pil = Image.fromarray(rgb)
-        rgb_pil = rgb_pil.resize((depth_width, depth_height))
-        rgb = np.array(rgb_pil)
+    #     # Resize RGB to match depth dimensions
+    #     rgb_pil = Image.fromarray(rgb)
+    #     rgb_pil = rgb_pil.resize((depth_width, depth_height))
+    #     rgb = np.array(rgb_pil)
 
-        return o3d.geometry.RGBDImage.create_from_color_and_depth(
-            o3d.geometry.Image(rgb),
-            o3d.geometry.Image(depth),
-            depth_scale=1.0,
-            convert_rgb_to_intensity=False,
-        )
+    #     return o3d.geometry.RGBDImage.create_from_color_and_depth(
+    #         o3d.geometry.Image(rgb),
+    #         o3d.geometry.Image(depth),
+    #         depth_scale=1.0,
+    #         convert_rgb_to_intensity=False,
+    #     )
 
     # def get_point_cloud(self, idx: int) -> o3d.geometry.PointCloud:
     #     """Get colored point cloud for a specific frame.

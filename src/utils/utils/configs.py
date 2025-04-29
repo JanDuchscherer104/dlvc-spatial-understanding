@@ -1,5 +1,4 @@
 import os
-from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Annotated, Literal, Optional, Type, Union
 
@@ -10,13 +9,28 @@ from .utils import CONSOLE, SingletonConfig
 
 
 class PathConfig(SingletonConfig):
-    root: Path = Field(default_factory=lambda: Path(__file__).parents[3].resolve())
+    root: Path = Field(default_factory=lambda: PathConfig._detect_root())
     target: Type["PathConfig"] = Field(default_factory=lambda: PathConfig)
 
-    data: Annotated[Path, Field(default=".data")]
+    # data: Annotated[Path, Field(default=".data")]
     env_file: Annotated[Path, Field(default=".env")]
 
-    @field_validator("data", "env_file", mode="before")
+    @staticmethod
+    def _detect_root() -> Path:
+        # Use /app if running in Docker, else use repo root
+        if (
+            os.environ.get("IN_DOCKER") == "1"
+            or Path("/.dockerenv").exists()
+            or (
+                Path("/proc/1/cgroup").exists()
+                and "docker" in Path("/proc/1/cgroup").read_text()
+            )
+        ):
+            return Path("/app").resolve()
+        # Default: repo root (3 parents up from this file)
+        return Path(__file__).parents[3].resolve()
+
+    @field_validator("env_file", mode="before")
     @classmethod
     def convert_to_path(cls, v: str | Path, info: ValidationInfo) -> Path:
         if isinstance(v, str):

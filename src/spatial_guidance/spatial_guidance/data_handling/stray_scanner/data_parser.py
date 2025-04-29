@@ -3,16 +3,13 @@ from typing import Any, Dict, List, Optional, Self, Tuple, Type, Union, cast
 
 import cv2
 import numpy as np
-import open3d as o3d
-import skvideo.io
-from PIL import Image
-from pydantic import Field, model_validator
-from regex import T
-from scipy.spatial.transform import Rotation
+from pydantic import Field
 
 from utils import CONSOLE, BaseConfig
 
 from .stray_scanner_paths import StrayScannerPaths
+
+# from scipy.spatial.transform import Rotation
 
 
 class StrayScannerDataParserConfig(BaseConfig["StrayScannerDataParser"]):

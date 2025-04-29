@@ -1,0 +1,6 @@
+[submodule "src/StrayVisualizer"]
+	path = src/StrayVisualizer
+	url = git@github.com:kekeblom/StrayVisualizer.git
+[submodule "src/external/VQASynth"]
+	path = src/external/VQASynth
+	url = git@github.com:remyxai/VQASynth.git

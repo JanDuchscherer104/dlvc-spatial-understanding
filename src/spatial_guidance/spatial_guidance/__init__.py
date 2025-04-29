@@ -1,6 +1,6 @@
 """Spatial guidance package."""
 
-from spatial_guidance.pipeline.pipeline_stage import PipelineStage  # Add this import"
+from spatial_guidance.pipeline.pipeline_stage import PipelineStage
 
 # from .audio_guidance.stt_engine import AudioConfig, SpeechToTextConfig, WhisperConfig
 from .data_handling.stray_scanner.data_parser import StrayScannerDataParserConfig

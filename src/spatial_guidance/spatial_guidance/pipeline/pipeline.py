@@ -4,10 +4,9 @@ from typing import Callable, Dict, List, Literal, Optional, Self, Type
 from pydantic import Field, model_validator
 from zenml import step
 from zenml.client import Client
-from zenml.config.docker_settings import DockerSettings
 from zenml.pipelines.pipeline_definition import Pipeline
 
-from utils import CONSOLE, BaseConfig, PathConfig
+from utils import CONSOLE
 
 from ..data_handling.stray_scanner.stray_dataset import StrayDatasetConfig
 from ..scene_understanding.segmentation_model import SegmentAnythingConfig

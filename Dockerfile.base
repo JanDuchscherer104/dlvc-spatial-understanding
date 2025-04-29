@@ -1,0 +1,20 @@
+FROM zenmldocker/zenml:py3.11
+
+# 1) Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg libsm6 libxext6 libgl1-mesa-glx && rm -rf /var/lib/apt/lists/*
+
+# 2) Python deps common to *all* stages
+RUN pip install --no-cache-dir \
+        "numpy>=2.2.5" \
+        "pydantic<=2.8.2" \
+        # google-genai>=1.12.1 \
+        # google-generativeai>=0.8.5 \
+        # langchain>=0.3.24 \
+        "python-dotenv>=1.1.0" \
+        "rich>=14.0.0" \
+        "opencv-python>=4.11.0.86" \
+        # open3d>=0.19.0 \
+        "Pillow>=11.2.1" \
+        "matplotlib>=3.10.0" \
+        "devtools>=0.12.2"

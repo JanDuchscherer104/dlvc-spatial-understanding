@@ -1,0 +1,42 @@
+# .dockerignore (at /Users/jd/Desktop/repos/dlvc-04-spatial-understanding/.dockerignore)
+
+.data/
+.git/
+__pycache__/
+*.pyc
+report/
+slides/
+docs/
+diary/
+notebooks/
+
+# Data & source
+.data/
+src/**/__pycache__/
+*.pyc
+
+# Jupyter
+notebooks/
+.ipynb_checkpoints/
+
+# Docs/presentations you don’t need in the image
+report/
+slides/
+docs/
+diary/
+**.md
+
+# Git & ZenML local state
+.git/
+.zenml/
+
+# Local Python envs
+.venv/
+env/
+
+# IDE configs
+.vscode/
+.idea/
+
+# OS artifacts
+.DS_Store

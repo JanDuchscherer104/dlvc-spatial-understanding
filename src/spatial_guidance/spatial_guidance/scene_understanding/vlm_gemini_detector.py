@@ -1,32 +1,16 @@
-from enum import Enum, auto
-from typing import (
-    Annotated,
-    Any,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Annotated, Any, List, Literal, Optional, Tuple, Type
 
-import numpy as np
 from google import genai
 from google.genai import types
 from langchain_core.output_parsers import PydanticOutputParser
-from PIL import Image
 from pydantic import Field
-from zenml import step
+from zenml.steps import BaseStep
 
-from utils import CONSOLE, BaseConfig, PathConfig
-
-from ..pipeline.data_contracts import DataSetOut, DetectionStageOut
-from ..pipeline.pipeline_stage import PipelineStage, PipelineStageConfig
+from ..pipeline.data_contracts import DatasetOut, DetectionStageOut
+from ..utils import CONSOLE, BaseConfig, PathConfig
 
 
-class GeminiVLMDetectionConfig(PipelineStageConfig["GeminiVLMDetection"]):
+class GeminiVLMDetectionConfig(BaseConfig["GeminiVLMDetection"]):
     """Configuration for Gemini VLM detection model."""
 
     target: Type["GeminiVLMDetection"] = Field(
@@ -114,21 +98,23 @@ class GeminiVLMDetectionConfig(PipelineStageConfig["GeminiVLMDetection"]):
         ]
 
 
-class GeminiVLMDetection(PipelineStage[DataSetOut, DetectionStageOut]):
+class GeminiVLMDetection(BaseStep):
     """Detection model using Google's Gemini multimodal model with structured output parsing.
 
     Inherits from PipelineStage with explicitly defined input and output types.
     """
 
-    def __init__(self, config: Optional[GeminiVLMDetectionConfig] = None):
+    def __init__(
+        self, config: Optional[GeminiVLMDetectionConfig] = None, **step_kwargs: Any
+    ):
         """Initialize the Gemini VLM detection model.
 
         Args:
             config: Configuration for the detection model
         """
-        config = config or GeminiVLMDetectionConfig()
-        super().__init__(config=config)
-        self.config = config
+        super().__init__(**step_kwargs)
+        # config = config or GeminiVLMDetectionConfig()
+        self.config = config or GeminiVLMDetectionConfig()
 
         # Initialize parser
         self.parser = PydanticOutputParser(pydantic_object=self.config.output_type)
@@ -137,7 +123,7 @@ class GeminiVLMDetection(PipelineStage[DataSetOut, DetectionStageOut]):
         CONSOLE.log(f"Initialized Gemini detector with model: {self.config.model_name}")
 
     def entrypoint(
-        self, input_data: DataSetOut
+        self, input_data: DatasetOut
     ) -> Annotated[DetectionStageOut, "Detection-Results"]:
         """Process a frame through the detection model.
 

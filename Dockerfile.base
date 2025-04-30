@@ -1,4 +1,4 @@
-FROM zenmldocker/zenml:py3.11
+FROM zenmldocker/zenml:0.81.0-py3.11
 
 # 1) Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -8,9 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir \
         "numpy>=2.2.5" \
         "pydantic<=2.8.2" \
-        # google-genai>=1.12.1 \
-        # google-generativeai>=0.8.5 \
-        # langchain>=0.3.24 \
+        "google-genai>=1.12.1" \
+        "google-generativeai>=0.8.5" \
+        "langchain>=0.3.24" \
         "python-dotenv>=1.1.0" \
         "rich>=14.0.0" \
         "opencv-python>=4.11.0.86" \
@@ -18,3 +18,10 @@ RUN pip install --no-cache-dir \
         "Pillow>=11.2.1" \
         "matplotlib>=3.10.0" \
         "devtools>=0.12.2"
+
+# WORKDIR /app
+
+# COPY src/utils    ./src/utils
+# COPY src/spatial_guidance ./src/spatial_guidance
+
+# RUN pip install --no-cache-dir -e src/utils -e src/spatial_guidance

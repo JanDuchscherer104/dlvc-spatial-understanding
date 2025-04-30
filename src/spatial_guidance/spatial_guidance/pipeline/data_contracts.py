@@ -13,78 +13,6 @@ T = TypeVar("T", bound="DataModel")
 class DataModel(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    @classmethod
-    def from_(cls: Type[T], *args: "DataModel") -> T:
-        """Create a new instance using fields from other DataModel instances.
-
-        This method creates a new instance of the class by extracting fields with
-        matching names from the provided DataModel instances. If multiple source
-        models have the same field, the last one in the args list takes precedence.
-
-        Args:
-            *args: One or more DataModel instances to extract fields from
-
-        Returns:
-            A new instance of the class with fields populated from source models
-        """
-        if not args:
-            return cls()
-
-        # Collect field names from the target class
-        target_fields = set(cls.model_fields.keys())
-
-        # Extract matching fields from source models
-        extracted_data = {}
-        for source in args:
-            source_data = source.model_dump()
-            matching_fields = {
-                field: value
-                for field, value in source_data.items()
-                if field in target_fields
-            }
-            extracted_data.update(matching_fields)
-
-        # Create new instance with extracted data
-        return cls(**extracted_data)
-
-    @classmethod
-    def load_from_artifact_dir(cls, artifact_dir: Union[str, Path]) -> "DataModel":
-        """
-        Load a DataModel instance from a ZenML artifact directory containing `data.json` and associated files.
-
-        Args:
-            artifact_dir: Path to the artifact directory
-
-        Returns:
-            An instance of the DataModel subclass with fields populated from stored files.
-        """
-        import json
-        from pathlib import Path
-
-        import numpy as np
-        from PIL import Image
-
-        artifact_dir = Path(artifact_dir)
-        meta_path = artifact_dir / "data.json"
-        with open(meta_path, "r") as f:
-            meta = json.load(f)
-
-        data_fields: dict = {}
-        for field, value in meta.items():
-            if isinstance(value, dict) and "file" in value:
-                file_path = artifact_dir / value["file"]
-                # Load image
-                if value.get("type") == "pil" or value["file"].endswith(".png"):
-                    img = Image.open(file_path)
-                    data_fields[field] = img
-                else:
-                    # Load numpy array
-                    data_fields[field] = np.load(file_path, allow_pickle=False)
-            else:
-                data_fields[field] = value
-
-        return cls(**data_fields)
-
 
 class PipelineIn(DataModel):
     """Input data for the input stage."""
@@ -93,7 +21,7 @@ class PipelineIn(DataModel):
     user_prompt: Optional[str] = None
 
 
-class DataSetOut(DataModel):
+class DatasetOut(DataModel):
     """Input data for detection stage."""
 
     rgb_image: Image

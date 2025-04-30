@@ -4,7 +4,7 @@ from typing import Annotated, List, Self
 
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
-from utils import CONSOLE, BaseConfig, PathConfig
+from ...utils import CONSOLE, BaseConfig, PathConfig
 
 
 class StrayScannerPaths(BaseConfig):

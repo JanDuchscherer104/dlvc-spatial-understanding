@@ -17,7 +17,7 @@ from typing import (
 )
 
 from devtools import pformat
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 from rich.console import Console as RichConsole
 from rich.text import Text
 from rich.theme import Theme

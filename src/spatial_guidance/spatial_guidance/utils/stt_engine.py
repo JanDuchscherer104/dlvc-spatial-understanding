@@ -6,7 +6,7 @@ from typing import Any, Dict, Literal, Optional, Protocol, Sequence, Set, Type, 
 import torch
 from pydantic import Field
 
-from utils import BaseConfig, PathConfig
+from ..utils import BaseConfig, PathConfig
 
 
 class WhisperTranscriber(Protocol):

@@ -1,41 +1,51 @@
 import os
-from typing import Callable, Dict, List, Literal, Optional, Self, Type
+from typing import Callable, Dict, List, Literal, Optional, Self, Type, Union
 
 from pydantic import Field, model_validator
-from zenml import step
 from zenml.client import Client
 from zenml.pipelines.pipeline_definition import Pipeline
-
-from utils import CONSOLE
+from zenml.steps import BaseStep
 
 from ..data_handling.stray_scanner.stray_dataset import StrayDatasetConfig
-from ..scene_understanding.segmentation_model import SegmentAnythingConfig
+from ..pipeline.docker_config import DockerConfig
+from ..scene_understanding.visualization_in import get_visualization_in
 from ..scene_understanding.vlm_gemini_detector import GeminiVLMDetectionConfig
+from ..utils import CONSOLE, BaseConfig
 from ..visualization.scene_visualizer import SceneVisualizerConfig
 from .data_contracts import (
     DataModel,
-    DataSetOut,
+    DatasetOut,
     DetectionStageOut,
     PipelineIn,
     VisualizationIn,
     VisualizationOut,
 )
-from .docker_config import BaseDockerConfig
+from .materializer import PydanticNumpyMaterializer
+from .step_configs import GeminiStepConfig, StepConfig
 
 
-class PipelineConfig(BaseDockerConfig["SpatialUnderstandingPipeline"]):
-    dataset_config: StrayDatasetConfig = Field(default_factory=StrayDatasetConfig)
-    detection_config: GeminiVLMDetectionConfig = Field(
-        default_factory=GeminiVLMDetectionConfig,
-        description="Configuration for detection stage",
+class PipelineStepSpec(BaseConfig):
+    target: Union[BaseConfig, Callable]
+    step_config: Optional[StepConfig] = None
+
+
+class PipelineConfig(BaseConfig["SpatialUnderstandingPipeline"]):
+
+    steps: Dict[str, PipelineStepSpec] = Field(
+        default_factory=lambda: {
+            "dataset": PipelineStepSpec(
+                target=StrayDatasetConfig(),
+            ),
+            "detection": PipelineStepSpec(
+                target=GeminiVLMDetectionConfig(),
+                step_config=GeminiStepConfig(),
+            ),
+            "get_visualization_in": PipelineStepSpec(target=get_visualization_in),
+            "visualization": PipelineStepSpec(target=SceneVisualizerConfig()),
+        }
     )
-    segmentation_config: SegmentAnythingConfig = Field(
-        default_factory=SegmentAnythingConfig,
-        description="Configuration for segmentation stage",
-    )
-    visualization_config: SceneVisualizerConfig = Field(
-        default_factory=SceneVisualizerConfig
-    )
+
+    global_docker_config: DockerConfig = Field(default_factory=DockerConfig)
 
     is_debug: bool = False
     verbose: bool = Field(default=True, description="Enable verbose logging")
@@ -43,10 +53,10 @@ class PipelineConfig(BaseDockerConfig["SpatialUnderstandingPipeline"]):
 
     # Global execution settings
     stack: Literal["default", "local_docker_stack"] = Field(
-        default="default", description="Stack to use for pipeline execution"
+        default="local_docker_stack", description="Stack to use for pipeline execution"
     )
     enable_cache_global: bool = Field(
-        default=False, description="Enable caching for pipeline steps"
+        default=True, description="Enable caching for pipeline steps"
     )
     enable_artifact_metadata_global: bool = Field(
         default=True, description="Enable artifact metadata"
@@ -86,6 +96,7 @@ class PipelineConfig(BaseDockerConfig["SpatialUnderstandingPipeline"]):
             os.environ["ZENML_DEBUG"] = "true"
             os.environ["ZENML_DEBUG_LOG_LEVEL"] = "DEBUG"
 
+        os.environ["ZENML_STORE_BACKUP_STRATEGY"] = "disabled"
         return self.target(self)
 
     def get_pipeline_kwargs(self) -> Dict:
@@ -110,16 +121,24 @@ class PipelineConfig(BaseDockerConfig["SpatialUnderstandingPipeline"]):
             model: Optional["Model"] = None,
             substitutions: Optional[Dict[str, str]] = None,
         """
-        return {
+
+        settings = {}
+
+        if self.global_docker_config.docker_settings is not None:
+            settings["docker"] = self.global_docker_config.docker_settings
+        if self.global_docker_config.orchestrator_settings is not None:
+            settings["orchestrator"] = self.global_docker_config.orchestrator_settings
+
+        params = {
             "name": self.target.__name__,
             "enable_cache": self.enable_cache_global,
             "enable_artifact_metadata": self.enable_artifact_metadata_global,
             "on_failure": self.on_failure_global,
             "on_success": self.on_success_global,
-            "settings": {
-                "docker": self.docker_settings,
-            },
+            "settings": settings,
         }
+
+        return {k: v for k, v in params.items() if v is not None}
 
 
 class SpatialUnderstandingPipeline(Pipeline):
@@ -132,7 +151,7 @@ class SpatialUnderstandingPipeline(Pipeline):
     each constructed via its PipelineStageConfig.
     """
 
-    def __init__(self, config: PipelineConfig):
+    def __init__(self, config: "PipelineConfig"):
         """
         Initialize the pipeline using the top-level configuration.
 
@@ -141,6 +160,13 @@ class SpatialUnderstandingPipeline(Pipeline):
         from our custom PipelineStage and enforce strong typing.
         """
         self.config = config
+
+        self.dataset = self.make_step(self.config.steps["dataset"])
+        self.detection_stage = self.make_step(self.config.steps["detection"])
+        self.visualization_stage = self.make_step(self.config.steps["visualization"])
+        self.get_visualization_in = self.make_step(
+            self.config.steps["get_visualization_in"]
+        )
 
         super().__init__(**self.config.get_pipeline_kwargs(), entrypoint=self.run)
 
@@ -161,20 +187,29 @@ class SpatialUnderstandingPipeline(Pipeline):
             The final pipeline output.
         """
 
-        self.dataset = self.config.dataset_config.setup_target()
-        self.detection_stage = self.config.detection_config.setup_target()
-        self.visualization_stage = self.config.visualization_config.setup_target()
-
         # Create initial pipeline input
         input_data = PipelineIn(idx=idx, user_prompt=user_prompt)
-        dataset_out = self.dataset(input_data)
-        detection_output = self.detection_stage(dataset_out)
-        visualization_in = get_visualization_in(
+        dataset_out = self.dataset(input_data)  # type: DatasetOut
+        detection_output = self.detection_stage(dataset_out)  # type: DetectionStageOut
+        visualization_in = self.get_visualization_in(
             dataset_out=dataset_out, detection_output=detection_output
-        )
-        final_output = self.visualization_stage(visualization_in)
+        )  # type: VisualizationIn
+        final_output = self.visualization_stage(
+            visualization_in
+        )  # type: VisualizationOut
 
         return final_output
+
+    @staticmethod
+    def make_step(
+        spec: "PipelineStepSpec",
+    ) -> BaseStep:
+        kwargs = spec.step_config.get_step_kwargs() if spec.step_config else {}
+        if isinstance(spec.target, BaseConfig):
+            target = spec.target.setup_target(**kwargs)
+        else:
+            target = spec.target
+        return target
 
     @classmethod
     def get_latest_output(cls) -> VisualizationOut:
@@ -229,24 +264,3 @@ class SpatialUnderstandingPipeline(Pipeline):
             raise RuntimeError(f"No step found with name '{stage_name}'.")
 
         return step.output.load()
-
-
-@step
-def get_visualization_in(
-    dataset_out: DataSetOut, detection_output: DetectionStageOut
-) -> VisualizationIn:
-    """
-    Create the visualization input from dataset and detection outputs.
-
-    Args:
-        dataset_out: Output from the dataset stage.
-        detection_output: Output from the detection stage.
-
-    Returns:
-        VisualizationIn: The combined input for the visualization stage.
-    """
-    return VisualizationIn(
-        rgb_image=dataset_out.rgb_image,
-        depth_image=dataset_out.depth_image,
-        detection_output=detection_output,
-    )

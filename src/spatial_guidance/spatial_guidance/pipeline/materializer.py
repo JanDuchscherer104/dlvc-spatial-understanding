@@ -7,13 +7,13 @@ from PIL import Image
 from zenml.enums import ArtifactType
 from zenml.materializers.base_materializer import BaseMaterializer
 
-from .data_contracts import DataModel
+from .data_contracts import DataModel, DatasetOut
 
 
 class PydanticNumpyMaterializer(BaseMaterializer):
     """Custom materializer for DataModel objects (Pydantic models with images)."""
 
-    ASSOCIATED_TYPES = (DataModel,)
+    ASSOCIATED_TYPES = (DataModel, DatasetOut)
     ASSOCIATED_ARTIFACT_TYPE = ArtifactType.DATA
 
     def _is_image_array(self, array: np.ndarray) -> bool:

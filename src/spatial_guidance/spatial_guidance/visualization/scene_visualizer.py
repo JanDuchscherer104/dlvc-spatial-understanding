@@ -11,14 +11,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image, ImageDraw
 from pydantic import Field
-
-from utils import CONSOLE
+from zenml.steps import BaseStep
 
 from ..pipeline.data_contracts import DetectedObject, VisualizationIn, VisualizationOut
-from ..pipeline.pipeline_stage import PipelineStage, PipelineStageConfig
+from ..utils import CONSOLE, BaseConfig
 
 
-class SceneVisualizerConfig(PipelineStageConfig["SceneVisualizer"]):
+class SceneVisualizerConfig(BaseConfig["SceneVisualizer"]):
     """Configuration for the scene visualization stage."""
 
     # Visualization-specific configuration
@@ -47,23 +46,26 @@ class SceneVisualizerConfig(PipelineStageConfig["SceneVisualizer"]):
         return self.target(self)
 
 
-class SceneVisualizer(PipelineStage[VisualizationIn, VisualizationOut]):
+class SceneVisualizer(BaseStep):
     """Scene visualization pipeline stage.
 
     This stage takes RGB and depth frames along with detection results,
     and produces a visualization of the scene with detected objects.
     """
 
-    def __init__(self, config: Optional[SceneVisualizerConfig] = None):
+    def __init__(
+        self, config: Optional[SceneVisualizerConfig] = None, **step_kwargs: Any
+    ) -> None:
         """Initialize the scene visualizer.
 
         Args:
             config: Configuration for the scene visualizer
         """
-        config = config or SceneVisualizerConfig()
-        super().__init__(config)
+        super().__init__(**step_kwargs)
+        # config = config or SceneVisualizerConfig()
 
         # Store visualization-specific configuration
+        config = config or SceneVisualizerConfig()
         self.show_debug_info = config.show_debug_info
         self.figure_size = config.figure_size
         self.colorful_depth = config.colorful_depth

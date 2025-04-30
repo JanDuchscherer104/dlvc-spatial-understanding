@@ -27,8 +27,8 @@ class PathConfig(SingletonConfig):
             )
         ):
             return Path("/app").resolve()
-        # Default: repo root (3 parents up from this file)
-        return Path(__file__).parents[3].resolve()
+        # Default: repo root (4 parents up from this file)
+        return Path(__file__).parents[4].resolve()
 
     @field_validator("env_file", mode="before")
     @classmethod

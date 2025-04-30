@@ -5,8 +5,7 @@ import cv2
 import numpy as np
 from pydantic import Field
 
-from utils import CONSOLE, BaseConfig
-
+from ...utils import CONSOLE, BaseConfig
 from .stray_scanner_paths import StrayScannerPaths
 
 # from scipy.spatial.transform import Rotation

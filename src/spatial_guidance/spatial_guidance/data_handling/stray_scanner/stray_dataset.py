@@ -9,15 +9,14 @@ import numpy as np
 # import open3d as o3d
 from PIL import Image
 from pydantic import Field
+from zenml.steps import BaseStep
 
-from utils import CONSOLE, BaseConfig
-
-from ...pipeline.data_contracts import DataSetOut, PipelineIn
-from ...pipeline.pipeline_stage import PipelineStage, PipelineStageConfig
+from ...pipeline.data_contracts import DatasetOut, PipelineIn
+from ...utils import CONSOLE, BaseConfig
 from .data_parser import StrayScannerDataParserConfig
 
 
-class StrayDatasetConfig(PipelineStageConfig["StrayDataset"]):
+class StrayDatasetConfig(BaseConfig["StrayDataset"]):
     """Configuration for StrayScanner dataset."""
 
     target: Type["StrayDataset"] = Field(default_factory=lambda: StrayDataset)
@@ -49,20 +48,17 @@ class StrayDatasetConfig(PipelineStageConfig["StrayDataset"]):
         return self.target(self)
 
 
-class StrayDataset(PipelineStage[PipelineIn, DataSetOut]):
+class StrayDataset(BaseStep):
     """Dataset class for StrayScanner data with minimal but essential functionality."""
 
-    def __init__(self, config: Optional[StrayDatasetConfig] = None):
+    def __init__(self, config: Optional[StrayDatasetConfig] = None, **step_kwargs):
         """Initialize the dataset.
 
         Args:
             config: Configuration for the dataset.
         """
-        if config is None:
-            CONSOLE.warn("No config provided for StrayDataset, using default config.")
-            config = StrayDatasetConfig()
-        self.config = config
-        super().__init__(config=config)
+        super().__init__(**step_kwargs)
+        self.config = config or StrayDatasetConfig()
 
         self.parser = self.config.data_parser_config.setup_target()
 
@@ -71,8 +67,8 @@ class StrayDataset(PipelineStage[PipelineIn, DataSetOut]):
         self._rgb_frames: Optional[List[Path]] = None
         self._depth_frames: Optional[List[Path]] = None
 
-    def entrypoint(self, input_data: PipelineIn) -> DataSetOut:
-        return DataSetOut(
+    def entrypoint(self, input_data: PipelineIn) -> DatasetOut:
+        return DatasetOut(
             rgb_image=Image.fromarray(self.get_rgb(input_data.idx)),
             depth_image=Image.fromarray(self.get_depth(input_data.idx)),
             user_prompt=input_data.user_prompt,

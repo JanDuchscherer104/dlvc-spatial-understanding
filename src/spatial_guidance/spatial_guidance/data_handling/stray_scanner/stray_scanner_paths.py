@@ -10,7 +10,7 @@ from ...utils import CONSOLE, BaseConfig, PathConfig
 class StrayScannerPaths(BaseConfig):
     """Configuration for Stray Scanner dataset paths."""
 
-    dataset_dir: Annotated[Path, Field(default="SmartAIs Recorded Data/baustelle")]
+    dataset_dir: Annotated[Path, Field(default="baustelle")]
     """Root directory of the Stray Scanner dataset."""
 
     rgb_video_filename: str = "rgb.mp4"

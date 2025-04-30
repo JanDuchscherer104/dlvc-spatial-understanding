@@ -22,7 +22,7 @@ class SceneVisualizerConfig(BaseConfig["SceneVisualizer"]):
 
     # Visualization-specific configuration
     show_debug_info: bool = Field(
-        False, description="Whether to show debug information like coordinates"
+        True, description="Whether to show debug information like coordinates"
     )
     figure_size: Tuple[int, int] = Field(
         (16, 7), description="Size of the output figure (width, height)"
@@ -36,11 +36,6 @@ class SceneVisualizerConfig(BaseConfig["SceneVisualizer"]):
         description="Target class to instantiate",
     )
     dpi: int = Field(100, description="DPI for rendering the output image")
-
-    target: Type["SceneVisualizer"] = Field(
-        default_factory=lambda: SceneVisualizer,
-        description="Target class to instantiate",
-    )
 
     def setup_target(self) -> "SceneVisualizer":
         return self.target(self)

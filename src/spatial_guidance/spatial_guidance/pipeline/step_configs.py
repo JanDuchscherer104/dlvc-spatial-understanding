@@ -1,15 +1,12 @@
 """Base implementation of pipeline stages."""
 
-from typing import Any, Callable, Dict, Generic, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, Optional
 
 from pydantic import Field
 from zenml.config import ResourceSettings, StepRetryConfig
-from zenml.materializers.base_materializer import BaseMaterializer
 
 from ..utils import BaseConfig
-from .data_contracts import DataModel
 from .docker_config import DockerConfig, GeminiDockerConfig
-from .materializer import PydanticNumpyMaterializer
 
 
 class StepConfig(BaseConfig):
@@ -36,10 +33,6 @@ class StepConfig(BaseConfig):
         default_factory=lambda: StepRetryConfig(max_retries=2, delay=5),
         description="Retry configuration for this stage",
     )
-
-    # output_materializers: Type[BaseMaterializer] = Field(
-    #     default_factory=lambda: PydanticNumpyMaterializer
-    # )
 
     # Callbacks
     on_failure: Optional[Callable] = Field(default=None, description="Failure callback")
@@ -79,6 +72,6 @@ class GeminiStepConfig(StepConfig):
 
     docker_config: GeminiDockerConfig = Field(default_factory=GeminiDockerConfig)
     retry: StepRetryConfig = Field(
-        default_factory=lambda: StepRetryConfig(max_retries=3, delay=10),
+        default_factory=lambda: StepRetryConfig(max_retries=4, delay=10),
         description="Retry configuration for this stage",
     )

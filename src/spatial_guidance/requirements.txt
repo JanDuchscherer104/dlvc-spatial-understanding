@@ -6,15 +6,14 @@ ipython>=9.0.2
 ######################
 langchain>=0.3.21
 # data validation and settings management
-pydantic>=2.10.6
+pydantic<=2.8.2
 # parsing API keys from .env
 python-dotenv>=1.1.0
 # CONSOLE logging
 rich>=13.9.4
 #####################
 # Speech To Text
-torch >= 2.6.0
-# ffmpeg-python >= 0.2.0
+# torch >= 2.6.0
 # git+https://github.com/openai/whisper.git
 devtools>=0.12.2
 #####################
@@ -22,11 +21,7 @@ devtools>=0.12.2
 openai>=1.68.2
 # StrayVis
 # open3d via `conda install -c conda-forge open3d`
-scipy>=1.15.2
-scikit-video>=1.1.11
-# pillow>=11.2
 matplotlib
 opencv-python
 # ZenML
-# zenml>=0.80.1
-zenml[server]>=0.80.1
+zenml[server]>=0.81.0

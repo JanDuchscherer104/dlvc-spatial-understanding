@@ -14,7 +14,9 @@ class DockerConfig(BaseConfig):
     """Common Docker + orchestrator settings."""
 
     docker_file: Optional[Annotated[Path, str]] = Field(
-        default=".step-requirements/Dockerfile",
+        # If building from a Dockerfile, set this to the path of the Dockerfile!
+        # default=".step-requirements/Dockerfile",
+        None,
         description="Path to the Dockerfile",
     )
     docker_settings: DockerSettings = Field(
@@ -25,9 +27,10 @@ class DockerConfig(BaseConfig):
                 PathConfig().root / ".step-requirements" / "requirements.txt"
             ).as_posix(),
             environment={"PYTHONPATH": "/app/src"},
-            install_stack_requirements=False,
+            build_context_root=PathConfig().root.as_posix(),
+            # install_stack_requirements=False,
             # parent_image_build_config=DockerBuildConfig(build_options={"pull": False}),
-            build_config=DockerBuildConfig(build_options={"pull": False}),
+            # build_config=DockerBuildConfig(build_options={"pull": False}),
             dockerignore=(PathConfig().root / ".dockerignore").as_posix(),
         )
     )
@@ -43,10 +46,6 @@ class DockerConfig(BaseConfig):
                         "bind": "/app/.env",
                         "mode": "ro",
                     },
-                    # f"{(PathConfig().root / 'src').as_posix()}": {
-                    #     "bind": "/app/src",
-                    #     "mode": "rw",
-                    # },
                 }
             }
         ),

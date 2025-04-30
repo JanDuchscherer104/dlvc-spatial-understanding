@@ -3,6 +3,7 @@ from typing import Callable, Dict, List, Literal, Optional, Self, Type, Union
 
 from pydantic import Field, model_validator
 from zenml.client import Client
+from zenml.materializers.materializer_registry import materializer_registry
 from zenml.pipelines.pipeline_definition import Pipeline
 from zenml.steps import BaseStep
 
@@ -90,6 +91,10 @@ class PipelineConfig(BaseConfig["SpatialUnderstandingPipeline"]):
         CONSOLE.set_verbose(self.verbose)
         CONSOLE.set_timestamp_display(self.show_timestamps)
 
+        materializer_registry.register_and_overwrite_type(
+            key=DataModel, type_=PydanticNumpyMaterializer
+        )
+
         if self.is_debug:
             # Set zenml debug mode export ZENML_DEBUG=true
             CONSOLE.log("Debug mode is enabled")
@@ -151,7 +156,7 @@ class SpatialUnderstandingPipeline(Pipeline):
     each constructed via its PipelineStageConfig.
     """
 
-    def __init__(self, config: "PipelineConfig"):
+    def __init__(self, config: PipelineConfig):
         """
         Initialize the pipeline using the top-level configuration.
 
@@ -211,8 +216,8 @@ class SpatialUnderstandingPipeline(Pipeline):
             target = spec.target
         return target
 
-    @classmethod
-    def get_latest_output(cls) -> VisualizationOut:
+    @staticmethod
+    def get_latest_output() -> VisualizationOut:
         """
         Loads the output of the latest run of this pipeline as a Python object.
 
@@ -220,7 +225,7 @@ class SpatialUnderstandingPipeline(Pipeline):
             The VisualizationOutput object produced by the final step.
         """
         client = Client()
-        pipeline_model = client.get_pipeline(cls.__name__)
+        pipeline_model = client.get_pipeline(SpatialUnderstandingPipeline.__name__)
         last_run = pipeline_model.last_run
         if last_run is None:
             raise RuntimeError("No runs found for this pipeline.")
@@ -235,16 +240,16 @@ class SpatialUnderstandingPipeline(Pipeline):
         output = final_step.output.load()
         return output
 
-    @classmethod
-    def get_names(cls, run_idx: int = -1) -> Dict[str, List[str]]:
-        run = Client().get_pipeline(cls.__name__).runs[run_idx]
+    @staticmethod
+    def get_stage_names(run_idx: int = 0) -> List[str]:
+        run = Client().get_pipeline(SpatialUnderstandingPipeline.__name__).runs[run_idx]
         if run is None:
             raise RuntimeError("No runs found for this pipeline.")
 
-        return {run.name: list(run.steps.keys())}
+        return list(run.steps.keys())
 
-    @classmethod
-    def get_output_of_stage(cls, stage_name: str, run_idx: int = -1) -> DataModel:
+    @staticmethod
+    def get_output_of_stage(stage_name: str, run_idx: int = 0) -> DataModel:
         """
         Get the output of a specific stage in the pipeline.
 
@@ -255,7 +260,7 @@ class SpatialUnderstandingPipeline(Pipeline):
         Returns:
             The output of the specified stage.
         """
-        run = Client().get_pipeline(cls.__name__).runs[run_idx]
+        run = Client().get_pipeline(SpatialUnderstandingPipeline.__name__).runs[run_idx]
         if run is None:
             raise RuntimeError("No runs found for this pipeline.")
 
@@ -264,3 +269,20 @@ class SpatialUnderstandingPipeline(Pipeline):
             raise RuntimeError(f"No step found with name '{stage_name}'.")
 
         return step.output.load()
+
+    @staticmethod
+    def get_all_outputs(run_idx: int = 0) -> Dict[str, DataModel]:
+        """
+        Get all outputs of the pipeline run.
+
+        Args:
+            run_idx: The index of the run to retrieve outputs from.
+
+        Returns:
+            A dictionary mapping stage names to their outputs.
+        """
+        run = Client().get_pipeline(SpatialUnderstandingPipeline.__name__).runs[run_idx]
+        if run is None:
+            raise RuntimeError("No runs found for this pipeline.")
+
+        return {step.name: step.output.load() for step in run.steps.values()}

@@ -4,13 +4,11 @@
 conda create -n dlvc python=3.11
 conda activate dlvc
 
-conda install -c conda-forge open3d
+# conda install -c conda-forge open3d - currently not needed!
 
 git clone <repository-url>
 cd dlvc-04-spatial-understanding
-pip install -r src/spatial_guidance/requirements.txt
 
-pip install -e src/utils
 pip install -e src/spatial_guidance
 ```
 
@@ -32,8 +30,22 @@ Use the provided Makefile to set up Docker and ZenML. The Makefile contains seve
 Should print `{"repositories":[]}` when no images are present.
 2. **`zenml-init`**: Initializes ZenML, installs the numpy integration, registers the local docker orchestrator, sets up a stack called `local_docker_stack`, registers a container registry at `${REGISTRY_HOST}`, and updates the stack to use it.
 
-- **`build-base`**: Builds the base image from `Dockerfile.base` with tag `latest` (or specified via `TAG`), namespaced under `${NAMESPACE}` and pushed to the local registry.
-After building `make registry-check` should yield something like `{"repositories":["spatialunderstanding/base"]}`
+This should print the stack-describe table looking like this
+
+
+| **Component Type** | **Component Name** |
+| ------------------ | ------------------ |
+| ORCHESTRATOR       | local_docker       |
+| CONTAINER_REGISTRY | local-registry     |
+| ARTIFACT_STORE     | default            |
+
+
+'local_docker_stack' stack (ACTIVE)
+Stack 'local_docker_stack' with id '...' is owned by user default.
+
+
+- ~~**`build-base`**: Builds the base image from `Dockerfile.base` with tag `latest` (or specified via `TAG`), namespaced under `${NAMESPACE}` and pushed to the local registry.~~
+~~After building `make registry-check` should yield something like `{"repositories":["spatialunderstanding/base"]}`~
 
 - **`zenml-reinit`**: Completely resets ZenML, then repeats the full stack setup as done in `zenml-init`, ensuring a clean environment with a fresh stack and registry configuration.
 

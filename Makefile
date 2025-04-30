@@ -16,8 +16,9 @@ registry-check:
 	curl http://localhost:${PORT}/v2/_catalog
 
 build-base:
-	docker build -f ${BASE_DOCKERFILE} -t $(FULL_IMAGE_NAME):$(TAG) .
-	docker push $(FULL_IMAGE_NAME):$(TAG)
+	echo "Currently building is not done from a custom dockerfile!"
+# docker build -f ${BASE_DOCKERFILE} -t $(FULL_IMAGE_NAME):$(TAG) .
+# docker push $(FULL_IMAGE_NAME):$(TAG)
 
 zenml-init:
 	zenml init
@@ -30,10 +31,5 @@ zenml-init:
 
 zenml-reinit:
 	zenml clean --yes
-	zenml init
-	zenml orchestrator register local_docker --flavor=local_docker
-	zenml stack register local_docker_stack -o local_docker -a default --set
-	zenml container-registry register local-registry --flavor=default --uri=$(REGISTRY_HOST)
-	zenml stack update -c local-registry
-	zenml stack describe
+	make zenml-init
 

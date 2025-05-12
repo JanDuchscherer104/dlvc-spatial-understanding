@@ -4,3 +4,6 @@
 [submodule "src/external/VQASynth"]
 	path = src/external/VQASynth
 	url = git@github.com:remyxai/VQASynth.git
+[submodule "src/external/ADL-Project"]
+	path = src/external/ADL-Project
+	url = git@github.com:JanDuchscherer104/ADL-Project.git

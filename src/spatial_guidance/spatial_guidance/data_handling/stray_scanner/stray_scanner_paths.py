@@ -4,7 +4,7 @@ from typing import Annotated, List, Self
 
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
-from ...utils import CONSOLE, BaseConfig, PathConfig
+from ...utils import BaseConfig, Console, PathConfig
 
 
 class StrayScannerPaths(BaseConfig):
@@ -96,6 +96,8 @@ class StrayScannerPaths(BaseConfig):
         Returns:
             True if dataset is valid, False otherwise.
         """
+        CONSOLE = Console.with_prefix(self.__class__.__name__, "validate")
+
         # Check if root directory exists
         if not self.dataset_dir.exists():
             raise FileNotFoundError(

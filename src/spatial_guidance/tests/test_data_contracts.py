@@ -9,12 +9,12 @@ import numpy as np
 from PIL import Image
 
 from spatial_guidance.pipeline.data_contracts import (
+    AABBDetection,
+    AABBDetections,
     DataModel,
     DatasetOut,
     DepthEstimationInput,
     DepthEstimationOutput,
-    DetectedObject,
-    DetectionStageOut,
     EnrichedObject,
     PipelineIn,
     RefinedObject,

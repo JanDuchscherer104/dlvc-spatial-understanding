@@ -11,8 +11,8 @@ from PIL import Image
 from pydantic import Field
 from zenml.steps import BaseStep
 
-from ...pipeline.data_contracts import DatasetOut, PipelineIn
-from ...utils import CONSOLE, BaseConfig
+from ...data_contracts.dataset import DatasetOut, PipelineIn
+from ...utils import BaseConfig, Console
 from .data_parser import StrayScannerDataParserConfig
 
 
@@ -28,7 +28,7 @@ class StrayDatasetConfig(BaseConfig["StrayDataset"]):
     """Configuration for the data parser."""
 
     scale_factor: float = 1.0
-    """Scale factor for camera poses."""
+    """Scale factor for camera poses. No scaling if 1.0."""
 
     is_rotated: bool = True
     """Whether the frames are rotated."""
@@ -36,13 +36,14 @@ class StrayDatasetConfig(BaseConfig["StrayDataset"]):
     auto_scale_poses: bool = True
     """Whether to auto-scale poses to fit in a unit cube."""
 
-    confidence_threshold: int = 1
+    confidence_threshold: int = 1  # TODO: add filtering
     """Minimum confidence level for depth values (0-2)."""
+
+    resize_depth_to_rgb: bool = True
+    """Whether to resize depth images to match RGB dimensions."""
 
     depth_unit_scale_factor: float = 1e-3
     """Factor to convert depth values to meters (1e-3 converts mm to m)."""
-
-    depth_hw: Tuple[int, int] = (192, 256)
 
     def setup_target(self) -> "StrayDataset":
         return self.target(self)
@@ -68,10 +69,33 @@ class StrayDataset(BaseStep):
         self._depth_frames: Optional[List[Path]] = None
 
     def entrypoint(self, input_data: PipelineIn) -> DatasetOut:
+        rgb_image = Image.fromarray(self.get_rgb(input_data.idx))
+        # Use mode="F" for 32-bit float grayscale to preserve depth information
+        depth_image = Image.fromarray(self.get_depth(input_data.idx), mode="F")
+
+        # Resize depth image to match RGB dimensions if required
+        if self.config.resize_depth_to_rgb:
+            Console.with_prefix(self.__class__.__name__, "entrypoint").log(
+                f"Resizing depth image to match RGB dimensions {depth_image.size} -> {rgb_image.size}"
+            )
+            depth_image = depth_image.resize(rgb_image.size, Image.LANCZOS)
+
+        # Get camera intrinsics - scale if resizing was applied
+        camera_intrinsics = self.parser.get_intrinsics()
+        if self.config.resize_depth_to_rgb and rgb_image.size != depth_image.size:
+            # Scale intrinsics to match the image dimensions
+            width, height = rgb_image.size
+            camera_intrinsics = self.get_scaled_intrinsics(width, height)
+
+        # Get the camera pose for the current frame
+        camera_pose = self.get_poses(idx=input_data.idx)[0]
+
         return DatasetOut(
-            rgb_image=Image.fromarray(self.get_rgb(input_data.idx)),
-            depth_image=Image.fromarray(self.get_depth(input_data.idx)),
+            rgb_image=rgb_image,
+            depth_image=depth_image,
             user_prompt=input_data.user_prompt,
+            camera_intrinsics=camera_intrinsics.copy(),
+            camera_pose=camera_pose.copy(),
         )
 
     def get_rgb_dimensions(self) -> Tuple[int, int]:
@@ -105,14 +129,18 @@ class StrayDataset(BaseStep):
     def get_scaled_intrinsics(
         self, target_width: int, target_height: int
     ) -> np.ndarray:
-        """Get camera intrinsics matrix scaled to target resolution.
+        """
+        Returns a resized intrinsics matrix K' for a new image size (W',H').
 
-        Args:
-            target_width: Target width in pixels
-            target_height: Target height in pixels
+        Given original K and original image dims (W,H), compute:
 
-        Returns:
-            Scaled intrinsics matrix as numpy array
+            sx = W'/W,   sy = H'/H
+
+        then
+
+                 [ fx·sx,    0,  cx·sx]
+            K' = [  0,    fy·sy, cy·sy]
+                 [  0,        0,     1]
         """
         intrinsics = self.parser.get_intrinsics()
         rgb_height, rgb_width = self.get_rgb_dimensions()
@@ -125,8 +153,19 @@ class StrayDataset(BaseStep):
         """Get IMU sensor data if available."""
         return self.parser.get_imu_data()  # type: ignore
 
-    def get_poses(self) -> List[np.ndarray]:
-        """Get all camera poses, potentially scaled."""
+    def get_poses(self, idx: Optional[int] = None) -> List[np.ndarray]:
+        """
+        Returns a list of 4x4 world-to-camera transforms T_WC:
+
+            T_WC = [ R | t ]
+                   [ 0 | 1 ]
+
+        where R is the rotation matrix from the unit quaternion (qx,qy,qz,qw)
+        and t = [x, y, z]^T is the camera center in world coordinates.
+
+        Args:
+            idx: Optional index to get a specific pose. If None, returns all poses.
+        """
         if self._poses_cache is not None:
             return self._poses_cache
 
@@ -139,7 +178,7 @@ class StrayDataset(BaseStep):
         if self._poses_cache is None:
             self._poses_cache = poses
 
-        return poses
+        return poses if idx is None else [poses[idx]]
 
     def _scale_poses(self, poses: List[np.ndarray]) -> List[np.ndarray]:
         """Scale camera poses.

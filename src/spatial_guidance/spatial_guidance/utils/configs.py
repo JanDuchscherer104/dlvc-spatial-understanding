@@ -5,12 +5,13 @@ from typing import Annotated, Literal, Optional, Type, Union
 from dotenv import load_dotenv
 from pydantic import Field, ValidationInfo, field_validator
 
-from .utils import CONSOLE, SingletonConfig
+from .console import Console
+from .utils import SingletonConfig
 
 
 class PathConfig(SingletonConfig):
     root: Path = Field(default_factory=lambda: PathConfig._detect_root())
-    target: Type["PathConfig"] = Field(default_factory=lambda: PathConfig)
+    data: Annotated[Path, Field(default=".data")]
 
     # data: Annotated[Path, Field(default=".data")]
     env_file: Annotated[Path, Field(default=".env")]
@@ -30,9 +31,12 @@ class PathConfig(SingletonConfig):
         # Default: repo root (4 parents up from this file)
         return Path(__file__).parents[4].resolve()
 
-    @field_validator("env_file", mode="before")
+    @field_validator("env_file", "data", mode="before")
     @classmethod
     def convert_to_path(cls, v: str | Path, info: ValidationInfo) -> Path:
+        CONSOLE = Console.with_prefix(
+            cls.__name__, f"convert_to_path ({info.field_name})"
+        )
         if isinstance(v, str):
             root = info.data.get("root", Path.cwd())
             v = root / v if not Path(v).is_absolute() else Path(v)
@@ -59,6 +63,7 @@ class PathConfig(SingletonConfig):
         Returns:
             The API key value or None if not found
         """
+        CONSOLE = Console.with_prefix(self.__class__.__name__, "get_api_key")
         env_path = self.root / self.env_file
         if not env_path.exists():
             CONSOLE.warn(f"Environment file {env_path} does not exist")

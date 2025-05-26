@@ -8,9 +8,9 @@ from zenml.enums import ArtifactType
 from zenml.materializers.base_materializer import BaseMaterializer
 
 from spatial_guidance.pipeline.data_contracts import (
+    AABBDetection,
+    AABBDetections,
     DataModel,
-    DetectedObject,
-    DetectionStageOut,
     VisualizationIn,
     VisualizationOut,
 )
@@ -36,7 +36,7 @@ class TestSceneVisualizerStage(unittest.TestCase):
         depth = Image.new("RGB", (100, 100), color="black")
         # No objects; use proper DetectionStageOut
         vis = SceneVisualizerConfig().setup_target()
-        detection_output = DetectionStageOut(objects=[])
+        detection_output = AABBDetections(objects=[])
         out = vis.entrypoint(
             VisualizationIn(
                 rgb_image=rgb,
@@ -53,8 +53,8 @@ class TestSceneVisualizerStage(unittest.TestCase):
         rgb = Image.new("RGB", (100, 100), color="white")
         depth = Image.new("RGB", (100, 100), color="white")
         # Construct a full DetectedObject
-        obj = DetectedObject(
-            aabb_2d=[250, 250, 750, 750],
+        obj = AABBDetection(
+            box_2d=[250, 250, 750, 750],
             points_2d=[(500, 500)],
             label="test",
             approx_distance=1.0,
@@ -65,7 +65,7 @@ class TestSceneVisualizerStage(unittest.TestCase):
             hazard_type=None,
         )
         vis = SceneVisualizerConfig(show_debug_info=True, point_radius=5).setup_target()
-        detection_output = DetectionStageOut(objects=[obj])
+        detection_output = AABBDetections(objects=[obj])
         out = vis.entrypoint(
             VisualizationIn(
                 rgb_image=rgb,

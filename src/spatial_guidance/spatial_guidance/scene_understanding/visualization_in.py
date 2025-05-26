@@ -1,11 +1,11 @@
 from zenml import step
 
-from ..pipeline.data_contracts import DatasetOut, DetectionStageOut, VisualizationIn
+from ..pipeline.data_contracts import AABBDetections, DatasetOut, VisualizationIn
 
 
 @step
 def get_visualization_in(
-    dataset_out: DatasetOut, detection_output: DetectionStageOut
+    dataset_out: DatasetOut, detection_output: AABBDetections
 ) -> VisualizationIn:
     """
     Create the visualization input from dataset and detection outputs.

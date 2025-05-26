@@ -9,18 +9,11 @@ from zenml.steps import BaseStep
 
 from ..data_handling.stray_scanner.stray_dataset import StrayDatasetConfig
 from ..pipeline.docker_config import DockerConfig
+from ..scene_understanding.gemini_aabb_detection import GeminiAABBDetSeg
+from ..scene_understanding.gemini_obb_detection import GeminiOBBDet
 from ..scene_understanding.visualization_in import get_visualization_in
-from ..scene_understanding.vlm_gemini_detector import GeminiVLMDetectionConfig
-from ..utils import CONSOLE, BaseConfig
+from ..utils import BaseConfig, Console
 from ..visualization.scene_visualizer import SceneVisualizerConfig
-from .data_contracts import (
-    DataModel,
-    DatasetOut,
-    DetectionStageOut,
-    PipelineIn,
-    VisualizationIn,
-    VisualizationOut,
-)
 from .materializer import PydanticNumpyMaterializer
 from .step_configs import GeminiStepConfig, StepConfig
 
@@ -31,14 +24,17 @@ class PipelineStepSpec(BaseConfig):
 
 
 class PipelineConfig(BaseConfig["SpatialUnderstandingPipeline"]):
-
     steps: Dict[str, PipelineStepSpec] = Field(
         default_factory=lambda: {
             "dataset": PipelineStepSpec(
                 target=StrayDatasetConfig(),
             ),
             "detection": PipelineStepSpec(
-                target=GeminiVLMDetectionConfig(),
+                target=GeminiAABBDetSeg(),
+                step_config=GeminiStepConfig(),
+            ),
+            "obb_detection": PipelineStepSpec(
+                target=GeminiOBBDet(),
                 step_config=GeminiStepConfig(),
             ),
             "get_visualization_in": PipelineStepSpec(target=get_visualization_in),
@@ -76,6 +72,7 @@ class PipelineConfig(BaseConfig["SpatialUnderstandingPipeline"]):
 
     @model_validator(mode="after")
     def validate_stack_name(self) -> Self:
+        CONSOLE = Console.with_prefix(self.__class__.__name__, "validate_stack_name")
         try:
             client = Client()
             client.activate_stack(stack_name_id_or_prefix=self.stack)
@@ -88,6 +85,7 @@ class PipelineConfig(BaseConfig["SpatialUnderstandingPipeline"]):
         return self
 
     def setup_target(self) -> "SpatialUnderstandingPipeline":
+        CONSOLE = Console.with_prefix(self.__class__.__name__, "setup_target")
         CONSOLE.set_verbose(self.verbose)
         CONSOLE.set_timestamp_display(self.show_timestamps)
 
@@ -168,6 +166,7 @@ class SpatialUnderstandingPipeline(Pipeline):
 
         self.dataset = self.make_step(self.config.steps["dataset"])
         self.detection_stage = self.make_step(self.config.steps["detection"])
+        self.obb_detection_stage = self.make_step(self.config.steps["obb_detection"])
         self.visualization_stage = self.make_step(self.config.steps["visualization"])
         self.get_visualization_in = self.make_step(
             self.config.steps["get_visualization_in"]
@@ -195,9 +194,20 @@ class SpatialUnderstandingPipeline(Pipeline):
         # Create initial pipeline input
         input_data = PipelineIn(idx=idx, user_prompt=user_prompt)
         dataset_out = self.dataset(input_data)  # type: DatasetOut
-        detection_output = self.detection_stage(dataset_out)  # type: DetectionStageOut
+
+        # Run AABB and OBB detection.
+        # ZenML can run these in parallel if their inputs are ready and they don't depend on each other.
+        aabb_detection_output = self.detection_stage(
+            dataset_out
+        )  # type: AABBDetections
+        obb_detection_output = self.obb_detection_stage(
+            dataset_out
+        )  # type: OBBDetections
+
         visualization_in = self.get_visualization_in(
-            dataset_out=dataset_out, detection_output=detection_output
+            dataset_out=dataset_out,
+            aabb_detection_output=aabb_detection_output,
+            obb_detection_output=obb_detection_output,
         )  # type: VisualizationIn
         final_output = self.visualization_stage(
             visualization_in

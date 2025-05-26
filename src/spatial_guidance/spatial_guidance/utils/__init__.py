@@ -1,4 +1,5 @@
 from .configs import PathConfig
-from .utils import CONSOLE, BaseConfig
+from .console import Console
+from .utils import BaseConfig
 
-__all__ = ["CONSOLE", "BaseConfig", "PathConfig"]
+__all__ = ["Console", "BaseConfig", "PathConfig"]

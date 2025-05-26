@@ -4,11 +4,11 @@ from typing import Any, Dict, List, Optional, Self, Tuple, Type, Union, cast
 import cv2
 import numpy as np
 from pydantic import Field
+from scipy.spatial.transform import Rotation
 
-from ...utils import CONSOLE, BaseConfig
+from ...utils.console import Console
+from ...utils.utils import BaseConfig
 from .stray_scanner_paths import StrayScannerPaths
-
-# from scipy.spatial.transform import Rotation
 
 
 class StrayScannerDataParserConfig(BaseConfig["StrayScannerDataParser"]):
@@ -69,7 +69,21 @@ class StrayScannerDataParser:
         )
 
     def get_intrinsics(self) -> np.ndarray:
-        """Get camera intrinsics matrix."""
+        """
+        Returns
+        -------
+        K : np.ndarray, shape (3,3)
+            Camera intrinsics matrix:
+
+                [ fx   0   cx ]
+            K = [  0   fy  cy ]
+                [  0    0   1 ]
+
+            where
+            - fx, fy are focal lengths in pixels,
+            - (cx, cy) is the principal point (optical center),
+            - aspect ratio fx≈fy if pixels are square.
+        """
         if self._intrinsics is None:
             self._intrinsics = np.loadtxt(
                 self.config.paths.get_camera_matrix_path(), delimiter=","
@@ -77,10 +91,18 @@ class StrayScannerDataParser:
             assert isinstance(self._intrinsics, np.ndarray)
             assert self._intrinsics.shape == (3, 3), "Camera matrix must be 3x3"
 
-        return self._intrinsics.copy()
+        return self._intrinsics
 
     def get_poses(self) -> List[np.ndarray]:
-        """Get camera poses from odometry data."""
+        """Get camera poses from odometry data.
+        - Raw format: `timestamp, frame, x, y, z, qx, qy, qz, qw``
+             where
+             - `timestamp` is the time in seconds since the start of recording
+             - `frame` is the frame number
+             - `(x, y, z)` is the position in meters
+             - `(qx, qy, qz, qw)` is the orientation as a quaternion
+
+        """
         if self._poses is None:
             odometry = np.loadtxt(
                 self.config.paths.get_odometry_path(), delimiter=",", skiprows=1
@@ -103,7 +125,7 @@ class StrayScannerDataParser:
 
             self._poses = poses
 
-        return self._poses.copy()
+        return self._poses
 
     def get_frame_count(self) -> int:
         """Get the number of frames in the dataset."""
@@ -115,7 +137,13 @@ class StrayScannerDataParser:
         return self._frame_count
 
     def get_imu_data(self) -> Optional[np.ndarray]:
-        """Get IMU sensor data if available."""
+        """Get IMU sensor data
+        - timestamp, a_x, a_y, a_z, alpha_x, alpha_y, alpha_z
+        where
+        - timestamp: time in seconds since start of recording
+        - a_x, a_y, a_z (linear accelerations): accelerometer readings along the different axes in m/s^2
+        - alpha_x, alpha_y, alpha_z (angular velocities): gyroscope readings in rad/s
+        """
         if self._imu_data is None:
             imu_path = self.config.paths.get_imu_path()
             if imu_path.exists():
@@ -123,7 +151,7 @@ class StrayScannerDataParser:
             else:
                 return None
 
-        return self._imu_data.copy() if self._imu_data is not None else None
+        return self._imu_data if self._imu_data is not None else None
 
     def get_available_rgb_frames(self) -> List[Path]:
         """Get all available RGB frame paths, falling back to rotated frames if regular ones are missing.
@@ -142,6 +170,7 @@ class StrayScannerDataParser:
 
     def get_rgb_frames(self) -> List[Path]:
         """Get all RGB frame paths sorted."""
+        CONSOLE = Console.with_prefix(self.__class__.__name__, "get_rgb_frames")
         if self._rgb_frames is None:
             rgb_dir = self.config.paths.get_rgb_dir()
             if not rgb_dir.exists():
@@ -164,6 +193,10 @@ class StrayScannerDataParser:
 
     def get_rgb_rotated_frames(self) -> List[Path]:
         """Get all rotated RGB frame paths sorted."""
+        CONSOLE = Console.with_prefix(
+            self.__class__.__name__,
+            "get_rgb_rotated_frames",
+        )
         if self._rgb_frames_rotated is None:
             rgb_rotated_dir = self.config.paths.get_rgb_rotated_dir()
             if not rgb_rotated_dir.exists():
@@ -179,6 +212,7 @@ class StrayScannerDataParser:
 
     def get_depth_frames(self) -> List[Path]:
         """Get all depth frame paths sorted."""
+        CONSOLE = Console.with_prefix(self.__class__.__name__, "get_depth_frames")
         if self._depth_frames is None:
             depth_dir = self.config.paths.get_depth_dir()
             if not depth_dir.exists():

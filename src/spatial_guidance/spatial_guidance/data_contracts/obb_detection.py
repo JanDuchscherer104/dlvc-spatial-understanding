@@ -2,7 +2,6 @@ from typing import Annotated, Any, Iterator, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-from cv2 import LINE_8
 from matplotlib.lines import Line2D
 from PIL import Image
 from pydantic import Field, ValidationInfo, field_validator, model_validator
@@ -15,13 +14,14 @@ VERTEX_ORDER = [1, 3, 7, 5, 0, 2, 6, 4]
 
 class RawOBBDetection(DataModel):
     label: str = Field(
-        ..., description="Unique descriptive label of the detected object."
+        ...,
+        description="Unique, concise, descriptive label without any room for ambiguity. Examples: 'car_parked', 'scooter_innactive_lying', 'construction_barrier_right'",
     )
     box_3d: Annotated[
         List[float],
         Field(
             ...,
-            description="3D bounding box parameters: [x_center, y_center, z_center, x_size, y_size, z_size, roll, pitch, yaw].",
+            description="Accurate 3D bounding box parameters: [x_center, y_center, z_center, x_size, y_size, z_size, roll, pitch, yaw].",
             # "Center and size are in metric units. Euler angles (roll, pitch, yaw) are in degrees.",
             min_length=9,
             max_length=9,

@@ -1,6 +1,6 @@
 import base64
 import io
-import re
+import math
 import trace
 import traceback
 from typing import Annotated, Any, List, Optional, Tuple
@@ -14,6 +14,260 @@ from ..utils import Console
 from . import DataModel
 
 
+def pixel_to_camera_coordinates(
+    pixel_coords: np.ndarray, depth: float, camera_intrinsics: np.ndarray
+) -> np.ndarray:
+    """
+    Convert pixel coordinates to camera coordinates using depth and camera intrinsics.
+
+    Args:
+        pixel_coords: Array of shape (2,) with [x, y] pixel coordinates
+        depth: Depth value in meters
+        camera_intrinsics: 3x3 camera intrinsics matrix
+
+    Returns:
+        Camera coordinates as np.ndarray of shape (3,) in meters
+    """
+    x_pixel, y_pixel = pixel_coords
+    fx, fy = camera_intrinsics[0, 0], camera_intrinsics[1, 1]
+    cx, cy = camera_intrinsics[0, 2], camera_intrinsics[1, 2]
+
+    # Convert to camera coordinates
+    x_cam = (x_pixel - cx) * depth / fx
+    y_cam = (y_pixel - cy) * depth / fy
+    z_cam = depth
+
+    return np.array([x_cam, y_cam, z_cam])
+
+
+def camera_to_world_coordinates(
+    camera_coords: np.ndarray, camera_pose: np.ndarray
+) -> np.ndarray:
+    """
+    Transform camera coordinates to world coordinates using camera pose.
+
+    Args:
+        camera_coords: Array of shape (3,) with camera coordinates in meters
+        camera_pose: 4x4 world-to-camera transformation matrix
+
+    Returns:
+        World coordinates as np.ndarray of shape (3,) in meters
+    """
+    # Convert to homogeneous coordinates
+    camera_coords_homo = np.append(camera_coords, 1.0)
+
+    # Invert the camera pose to get camera-to-world transformation
+    world_to_camera = camera_pose
+    camera_to_world = np.linalg.inv(world_to_camera)
+
+    # Transform to world coordinates
+    world_coords_homo = camera_to_world @ camera_coords_homo
+
+    return world_coords_homo[:3]
+
+
+def compute_3d_center_from_bbox(
+    bbox: np.ndarray,
+    depth_image: np.ndarray,
+    camera_intrinsics: np.ndarray,
+    camera_pose: np.ndarray,
+) -> Optional[np.ndarray]:
+    """
+    Compute the 3D center of an object from its bounding box using depth statistics.
+
+    Args:
+        bbox: Bounding box coordinates [y0, x0, y1, x1] in pixels
+        depth_image: Depth image as numpy array (height, width) in meters
+        camera_intrinsics: 3x3 camera intrinsics matrix
+        camera_pose: 4x4 world-to-camera transformation matrix
+
+    Returns:
+        3D center in world coordinates as np.ndarray of shape (3,) or None if computation fails
+    """
+    try:
+        y0, x0, y1, x1 = bbox.astype(int)
+
+        # Extract depth values from bounding box region
+        bbox_depth = depth_image[y0:y1, x0:x1]
+        valid_depths = bbox_depth[bbox_depth > 0]  # Filter out invalid depths
+
+        if len(valid_depths) == 0:
+            return None
+
+        # Use median depth for robust estimation
+        median_depth = np.median(valid_depths)
+
+        # Center of bounding box in pixel coordinates
+        center_x = (x0 + x1) / 2.0
+        center_y = (y0 + y1) / 2.0
+        pixel_coords = np.array([center_x, center_y])
+
+        # Convert to camera coordinates then to world coordinates
+        camera_coords = pixel_to_camera_coordinates(
+            pixel_coords, median_depth, camera_intrinsics
+        )
+        world_coords = camera_to_world_coordinates(camera_coords, camera_pose)
+
+        return world_coords
+
+    except Exception as e:
+        Console.with_prefix("compute_3d_center_from_bbox").error(
+            f"Error computing 3D center: {e}"
+        )
+        return None
+
+
+def compute_3d_center_from_mask(
+    mask: np.ndarray,
+    depth_image: np.ndarray,
+    camera_intrinsics: np.ndarray,
+    camera_pose: np.ndarray,
+) -> Optional[np.ndarray]:
+    """
+    Compute the 3D center of an object from its segmentation mask using depth statistics.
+
+    Args:
+        mask: Binary mask as numpy array (height, width) with values > 0 for object pixels
+        depth_image: Depth image as numpy array (height, width) in meters
+        camera_intrinsics: 3x3 camera intrinsics matrix
+        camera_pose: 4x4 world-to-camera transformation matrix
+
+    Returns:
+        3D center in world coordinates as np.ndarray of shape (3,) or None if computation fails
+    """
+    try:
+        # Find pixels belonging to the object
+        object_pixels = mask > 0
+
+        if not np.any(object_pixels):
+            return None
+
+        # Extract depth values for object pixels
+        object_depths = depth_image[object_pixels]
+        valid_depths = object_depths[object_depths > 0]  # Filter out invalid depths
+
+        if len(valid_depths) == 0:
+            return None
+
+        # Use median depth for robust estimation
+        median_depth = np.median(valid_depths)
+
+        # Center of mass of the mask in pixel coordinates
+        y_coords, x_coords = np.where(object_pixels)
+        center_x = np.mean(x_coords)
+        center_y = np.mean(y_coords)
+        pixel_coords = np.array([center_x, center_y])
+
+        # Convert to camera coordinates then to world coordinates
+        camera_coords = pixel_to_camera_coordinates(
+            pixel_coords, median_depth, camera_intrinsics
+        )
+        world_coords = camera_to_world_coordinates(camera_coords, camera_pose)
+
+        return world_coords
+
+    except Exception as e:
+        Console.with_prefix("compute_3d_center_from_mask").error(
+            f"Error computing 3D center: {e}"
+        )
+        return None
+
+
+def compute_rotation_from_bbox(
+    bbox: np.ndarray,
+    img_size: Optional[Tuple[int, int]] = None,
+    camera_intrinsics: Optional[np.ndarray] = None,
+) -> Tuple[Optional[float], Optional[List[int]]]:
+    """
+    Compute rotation information from bounding box geometry with FOV-aware mapping.
+
+    Args:
+        bbox: Bounding box coordinates [y0, x0, y1, x1] in pixels
+        img_size: Image size (width, height) in pixels for FOV calculation
+        camera_intrinsics: 3x3 camera intrinsics matrix for FOV calculation
+
+    Returns:
+        Tuple of (rotation_deg, rotation_clock) where:
+        - rotation_deg: Rotation in degrees (0 = aligned with x-axis)
+        - rotation_clock: 12-hour clock positions with 1-hour resolution [1, 2, 3, ..., 12]
+    """
+    try:
+        y0, x0, y1, x1 = bbox
+
+        # Calculate bounding box dimensions and center
+        width = x1 - x0
+        height = y1 - y0
+        center_x = (x0 + x1) / 2.0
+        center_y = (y0 + y1) / 2.0
+
+        if width == 0 and height == 0:
+            return None, None
+
+        # Calculate rotation based on position in image if camera intrinsics are available
+        if img_size is not None and camera_intrinsics is not None:
+            img_width, img_height = img_size
+            fx = camera_intrinsics[0, 0]
+            cx = camera_intrinsics[0, 2]
+            cy = camera_intrinsics[1, 2]
+
+            # Calculate horizontal FOV
+            horizontal_fov_rad = 2 * math.atan(img_width / (2 * fx))
+            horizontal_fov_deg = math.degrees(horizontal_fov_rad)
+
+            # Calculate angular position relative to image center
+            # Normalized position from center: -1 (left) to +1 (right)
+            normalized_x = (center_x - cx) / (img_width / 2)
+
+            # Map to angular position within FOV
+            angular_offset = normalized_x * (horizontal_fov_deg / 2)
+
+            # Convert to compass bearing (0° = North/12 o'clock, 90° = East/3 o'clock)
+            # Negative angular_offset means object is to the left (counter-clockwise from north)
+            rotation_deg = (90 - angular_offset) % 360
+        else:
+            # Fallback to simple aspect ratio-based rotation
+            if width > height:
+                # Horizontally oriented - assume pointing East (3 o'clock)
+                rotation_deg = 90.0
+            else:
+                # Vertically oriented - assume pointing North (12 o'clock)
+                rotation_deg = 0.0
+
+        # Convert to 12-hour clock positions with 1-hour resolution
+        # Each hour represents 30 degrees (360° / 12 hours)
+        hour_step = 30.0
+
+        # Generate all 12 clock positions (1-12 o'clock)
+        clock_positions = []
+        for hour in range(1, 13):
+            # 12 o'clock = 0°, 1 o'clock = 30°, 2 o'clock = 60°, etc.
+            hour_angle = ((hour - 1) * hour_step) % 360
+            clock_positions.append(hour_angle)
+
+        # Find the closest clock position to our computed rotation
+        rotation_clock = []
+        for i, clock_angle in enumerate(clock_positions):
+            # Calculate angular difference (shortest path)
+            diff = abs((rotation_deg - clock_angle + 180) % 360 - 180)
+            if diff <= hour_step / 2:  # Within ±15° of this hour position
+                rotation_clock.append(i + 1)  # Hour positions 1-12
+
+        # If no exact match, find the closest hour
+        if not rotation_clock:
+            closest_hour = round(rotation_deg / hour_step) % 12
+            if closest_hour == 0:
+                closest_hour = 12
+            rotation_clock = [closest_hour]
+
+        return rotation_deg, rotation_clock
+
+    except Exception as e:
+        Console.with_prefix("compute_rotation_from_bbox").error(
+            f"Error computing rotation: {e}"
+        )
+        return None, None
+
+
 class RawAABBDetSeg(DataModel):
     label: str = Field(
         description="Unique, concise, descriptive label without any room for ambiguity. Examples: 'car_parked', 'scooter_innactive_lying', 'construction_barrier_right'",
@@ -25,11 +279,12 @@ class RawAABBDetSeg(DataModel):
     # base64 PNG string
     mask: str = Field(
         description=(
-            "Segmentation mask of the detected object. "
+            "Accurate segmentation mask of the detected object. High precision with minimal false positives is paramount. "
             # "Probability map in range [0, 255]. "
             # "The string should start with 'data:image/png;base64,' followed by the actual base64 content. "
             # "Ensure the generated base64 string is not a placeholder and accurately represents the visual mask. "
-            # "Segmentation mask of the detected object. Compute the mask using your built-in segmentation head, then encode it as a PNG and base64 string. The string must start with 'data:image/png;base64,' followed by the actual base64 content generated from your segmentation head (not a placeholder). Ensure the mask accurately represents the object."
+            # "Segmentation mask of the detected object. Compute the mask using your built-in segmentation head, then encode it as base64 string. The string must start with 'data:image/png;base64,' followed by the actual base64 content generated from your segmentation head (not a placeholder). "
+            # "Generate the segmentation mask by identifying the pixels belonging to the object, then encode this mask as a PNG image, and finally, provide the base64 representation of that PNG image."
         ),  # as a base64 PNG string (e.g., data:image/png;base64,iV...). Ensure to generate the mask in exactly the way your were trained.",
         # pattern=r"^data:image/png;base64,[A-Za-z0-9+/]+={0,2}$",
     )
@@ -38,10 +293,12 @@ class RawAABBDetSeg(DataModel):
 class AABBDetection(DataModel):
     box_2d: Annotated[np.ndarray, List[int]]
     """Bounding box coordinates in the format (xmin, xmin, ymax, xmax) normalized to [0, 1000], will be of size (1, 256, 256) before processing"""
-    mask: Annotated[Image, str] = Field(
-        pattern=r"^data:image/png;base64,[A-Za-z0-9+/]+={0,2}$"
-    )
+    center_3d_bbox: Optional[np.ndarray] = None
+    """3D center of the object in the scene, in world coordinates. Neighborhood around the center of the bounding box to query the depth image for depth statistics. Ues camera pose and intrinsics to convert from came coordinates to agent-centric world coordinates. Shape (3,) in meters."""
+    mask: Annotated[Image, str]
     """Segmentation mask of the detected object. Probability map in range [0, 255]"""
+    center_3d_mask: Optional[np.ndarray] = None
+    """3D center of the object in the scene, in world coordinates. Neighborhood around the center of the mask to query the depth image for depth statistics. Use camera pose and intrinsics to convert from camera coordinates to agent-centric world coordinates. Shape (3,) in meters."""
     label: str
     """Unique, concise, descriptive label."""
     min_depth: Optional[float] = None
@@ -50,6 +307,11 @@ class AABBDetection(DataModel):
     """Median depth (50th percentile) of the object in the scene in meters"""
     max_depth: Optional[float] = None
     """Maximum depth (90th percentile) of the object in the scene in meters"""
+
+    rotation_deg: Optional[float] = None
+    """Rotation of the object in degrees, where 0 degrees is North (12 o'clock). Computed from the center of the bounding box relative to camera FOV."""
+    rotation_clock: Optional[List[int]] = None
+    """Clock hour positions (1-12) where the object is located relative to the camera view. Uses 1-hour resolution with FOV-aware mapping."""
 
     processed_: bool = False
 
@@ -65,18 +327,9 @@ class AABBDetection(DataModel):
             return v
 
         if isinstance(v, str):
-            png_data = v.removeprefix("data:image/png;base64,")
-            
-            # Enhanced validation: Check for valid base64 characters first
-            import re
-            if not re.match(r'^[A-Za-z0-9+/]*={0,2}$', png_data):
-                CONSOLE = Console.with_prefix(cls.__name__, "validate_segmentation_mask")
-                CONSOLE.error(
-                    f"Invalid base64 characters in mask for item {info.data.get('label', 'unknown')}. "
-                    f"Creating fallback mask from bounding box."
-                )
-                return cls._create_fallback_mask(info.data.get('box_2d', [0, 0, 100, 100]))
-            
+            png_data = v.removeprefix(
+                "data:image/png;base64,"
+            )  #        pattern=r"^data:image/png;base64,[A-Za-z0-9+/]+={0,2}$"
             missing_padding = len(png_data) % 4
             if missing_padding:
                 png_data += "=" * (4 - missing_padding)
@@ -84,56 +337,26 @@ class AABBDetection(DataModel):
                     f"Added padding to base64 string for item {info.data.get('label', 'unknown')}"
                 )
             try:
-                png_bytes = base64.b64decode(png_data, validate=True)
+                png_bytes = base64.b64decode(png_data)
                 mask_img = PILImage.open(io.BytesIO(png_bytes))
-                
-                # Validate image properties
-                if mask_img.size[0] < 1 or mask_img.size[1] < 1:
-                    raise ValueError("Invalid mask dimensions")
-                    
-                return mask_img
-                
             except Exception as e:
                 CONSOLE = Console.with_prefix(
                     cls.__name__, "validate_segmentation_mask"
                 )
                 CONSOLE.error(
-                    f"Failed to decode mask for item {info.data.get('label', 'unknown')}: {e}. "
-                    f"Creating fallback mask from bounding box."
+                    f"Invalid mask format for item {info.data.get('label', 'unknown')}\n"
+                    f"{e}\n{traceback.format_exc()}"
                 )
-                return cls._create_fallback_mask(info.data.get('box_2d', [0, 0, 100, 100]))
+                return PILImage.new("L", (1, 1))
 
-        # Invalid type - create fallback
+            return mask_img
+
         CONSOLE = Console.with_prefix(cls.__name__, "validate_segmentation_mask")
         CONSOLE.error(
-            f"Invalid mask type for item {info.data.get('label', 'unknown')}: {type(v)}. "
-            f"Creating fallback mask from bounding box."
+            f"Invalid mask format for item {info.data['label']}\n"
+            f"Expected base64 PNG string, but got {type(v)}: {v}"
         )
-        return cls._create_fallback_mask(info.data.get('box_2d', [0, 0, 100, 100]))
-
-    @classmethod
-    def _create_fallback_mask(cls, bbox: List[int]) -> PILImage.Image:
-        """Create a simple rectangular mask from bounding box coordinates."""
-        from PIL import ImageDraw
-        
-        # Create 256x256 mask (standard size)
-        mask = PILImage.new('L', (256, 256), 0)
-        draw = ImageDraw.Draw(mask)
-        
-        # Scale bbox to 256x256 if needed (assuming bbox is in [0,1000] range)
-        if len(bbox) >= 4:
-            scaled_bbox = [
-                max(0, min(255, int(bbox[1] * 256 / 1000))),  # x1 (from y0)
-                max(0, min(255, int(bbox[0] * 256 / 1000))),  # y1 (from x0) 
-                max(0, min(255, int(bbox[3] * 256 / 1000))),  # x2 (from y1)
-                max(0, min(255, int(bbox[2] * 256 / 1000)))   # y2 (from x1)
-            ]
-            draw.rectangle(scaled_bbox, fill=255)
-        else:
-            # If bbox is invalid, create a small center mask
-            draw.rectangle([100, 100, 156, 156], fill=255)
-        
-        return mask
+        return PILImage.new("L", (1, 1))
 
     @field_validator("box_2d", mode="before")
     @classmethod
@@ -154,6 +377,8 @@ class AABBDetection(DataModel):
         img_size: Tuple[int, int],  # img_size is (width, height)
         confidence_tresh: Optional[float] = None,
         depth_image: Optional[np.ndarray] = None,
+        camera_intrinsics: Optional[np.ndarray] = None,
+        camera_pose: Optional[np.ndarray] = None,
     ) -> None:
         """
         Process the segmentation mask and bounding box for proper visualization.
@@ -226,12 +451,37 @@ class AABBDetection(DataModel):
                         f"{e}\n{traceback.format_exc()}"
                     )
 
+            # Compute 3D center and rotation if camera parameters are available
+            if (
+                camera_intrinsics is not None
+                and camera_pose is not None
+                and depth_image is not None
+            ):
+                try:
+                    # Compute 3D center from bounding box
+                    bbox_array = np.array([abs_y0, abs_x0, abs_y1, abs_x1])
+                    self.center_3d_bbox = compute_3d_center_from_bbox(
+                        bbox_array, depth_image, camera_intrinsics, camera_pose
+                    )
+
+                    # Compute 3D center from mask
+                    self.center_3d_mask = compute_3d_center_from_mask(
+                        np_mask_full, depth_image, camera_intrinsics, camera_pose
+                    )
+
+                    # Compute rotation from bounding box
+                    self.rotation_deg, self.rotation_clock = compute_rotation_from_bbox(
+                        bbox_array, img_size, camera_intrinsics
+                    )
+
+                except Exception as e:
+                    CONSOLE.error(
+                        f"Error computing 3D parameters for {self.label}:\n"
+                        f"{e}\n{traceback.format_exc()}"
+                    )
+
             self.mask = PILImage.fromarray(np_mask_full, mode="L")
             self.box_2d = np.array([abs_y0, abs_x0, abs_y1, abs_x1], dtype=np.float32)
-
-            # Compute image-space center of the projected corners
-            if isinstance(self.bev_bbox, np.ndarray):
-                self.image_center = np.nanmean(self.bev_bbox, axis=0)
 
             self.processed_ = True
 
@@ -261,6 +511,8 @@ class AABBDetections(DataModel):
         depth_image: Optional[
             PILImage.Image
         ] = None,  # Changed to PILImage.Image for consistency
+        camera_intrinsics: Optional[np.ndarray] = None,
+        camera_pose: Optional[np.ndarray] = None,
     ) -> None:
         """
         Process all detection objects with the given image dimensions.
@@ -269,13 +521,17 @@ class AABBDetections(DataModel):
             img_size: Tuple containing the width and height of the original image in pixels
             confidence_thresh: Optional confidence threshold for filtering detections in the range [0, 1]
             depth_image: Optional PIL depth image for depth statistics calculation
+            camera_intrinsics: Optional 3x3 camera intrinsics matrix
+            camera_pose: Optional 4x4 world-to-camera transformation matrix
         """
         depth_array = (
             np.array(depth_image, dtype=np.float32) if depth_image is not None else None
         )
 
         for obj in self.objects:
-            obj.process(img_size, confidence_thresh, depth_array)
+            obj.process(
+                img_size, confidence_thresh, depth_array, camera_intrinsics, camera_pose
+            )
 
     def __getitem__(self, index: int) -> AABBDetection:
         return self.objects[index]
@@ -294,11 +550,11 @@ class AABBDetections(DataModel):
         for obj in self.objects:
             detection_dict = {
                 "label": obj.label,
-                "bbox": (
-                    obj.box_2d.tolist()
-                    if hasattr(obj.box_2d, "tolist")
-                    else list(obj.box_2d)
-                ),
+                # "bbox": (
+                #     obj.box_2d.tolist()
+                #     if hasattr(obj.box_2d, "tolist")
+                #     else list(obj.box_2d)
+                # ),
                 "depth": obj.med_depth,
             }
             detections_list.append(detection_dict)

@@ -87,6 +87,7 @@ class DetectionVisualizer:
         show_boxes: bool = True,
         line_width: int = 2,
         font_size: int = 16,
+        show_3d_info: bool = False,
     ) -> PILImage.Image:
         result_img = img.copy()
         width, height = img.size
@@ -158,6 +159,12 @@ class DetectionVisualizer:
                 depth_parts.append(f"{obj.max_depth:.1f}")
             if depth_parts:
                 label_text += f" D:({','.join(depth_parts)})m"
+
+            # Add 3D information if requested and available
+            if show_3d_info:
+                info_3d = DetectionVisualizer._format_3d_info(obj)
+                if info_3d:
+                    label_text += f"\n{info_3d}"
 
             try:
                 bbox = draw.textbbox((0, 0), label_text, font=font)
@@ -258,6 +265,7 @@ class DetectionVisualizer:
         img_height: int,
         line_width: int = 2,
         font_size: int = 16,
+        show_3d_info: bool = False,
     ) -> PILImage.Image:
         depth_vis_img = DetectionVisualizer._create_depth_visualization(
             depth_image_pil, img_width, img_height, colorful_depth=True
@@ -320,6 +328,12 @@ class DetectionVisualizer:
                     depth_parts.append(f"{obj.max_depth:.1f}")
                 if depth_parts:
                     label_text += f" D:({','.join(depth_parts)})m"
+
+                # Add 3D information if requested and available
+                if show_3d_info:
+                    info_3d = DetectionVisualizer._format_3d_info(obj)
+                    if info_3d:
+                        label_text += f"\n{info_3d}"
 
                 try:
                     bbox = draw.textbbox((0, 0), label_text, font=font)
@@ -726,3 +740,80 @@ class DetectionVisualizer:
 
         plt.tight_layout()
         plt.show()
+
+    @staticmethod
+    def _format_3d_info(detection: AABBDetection, include_rotation: bool = True) -> str:
+        """
+        Format 3D information for display in labels.
+
+        Args:
+            detection: AABBDetection object with 3D fields
+            include_rotation: Whether to include rotation information
+
+        Returns:
+            Formatted string with 3D information
+        """
+        info_parts = []
+
+        if detection.center_3d_bbox is not None:
+            x, y, z = detection.center_3d_bbox
+            info_parts.append(f"3D-Bbox: ({x:.1f},{y:.1f},{z:.1f})m")
+
+        if detection.center_3d_mask is not None:
+            x, y, z = detection.center_3d_mask
+            info_parts.append(f"3D-Mask: ({x:.1f},{y:.1f},{z:.1f})m")
+
+        if include_rotation and detection.rotation_deg is not None:
+            rotation_info = f"Rot: {detection.rotation_deg:.1f}°"
+            if detection.rotation_clock is not None and detection.rotation_clock:
+                clock_positions = ", ".join(
+                    [f"{hour}h" for hour in detection.rotation_clock]
+                )
+                rotation_info += f" ({clock_positions})"
+            info_parts.append(rotation_info)
+
+        return "\n".join(info_parts) if info_parts else ""
+
+    @staticmethod
+    def print_3d_summary(detections: AABBDetections) -> None:
+        """
+        Print a summary of all 3D information computed for the detections.
+
+        Args:
+            detections: AABBDetections object with computed 3D fields
+        """
+        print("\n=== 3D Detection Summary ===")
+        if not detections.objects:
+            print("No detections found.")
+            return
+
+        for i, obj in enumerate(detections.objects):
+            print(f"\n[{i+1}] {obj.label}")
+            print(
+                f"  Depth stats: min={obj.min_depth:.2f}m, med={obj.med_depth:.2f}m, max={obj.max_depth:.2f}m"
+                if obj.min_depth is not None
+                else "  Depth stats: Not available"
+            )
+
+            if obj.center_3d_bbox is not None:
+                x, y, z = obj.center_3d_bbox
+                print(f"  3D Center (BBox): ({x:.2f}, {y:.2f}, {z:.2f})m")
+            else:
+                print("  3D Center (BBox): Not computed")
+
+            if obj.center_3d_mask is not None:
+                x, y, z = obj.center_3d_mask
+                print(f"  3D Center (Mask): ({x:.2f}, {y:.2f}, {z:.2f})m")
+            else:
+                print("  3D Center (Mask): Not computed")
+
+            if obj.rotation_deg is not None:
+                print(f"  Rotation: {obj.rotation_deg:.1f}°")
+                if obj.rotation_clock is not None and obj.rotation_clock:
+                    clock_positions = ", ".join(
+                        [f"{hour}h" for hour in obj.rotation_clock]
+                    )
+                    print(f"  Clock positions: {clock_positions}")
+            else:
+                print("  Rotation: Not computed")
+        print("\n===========================")

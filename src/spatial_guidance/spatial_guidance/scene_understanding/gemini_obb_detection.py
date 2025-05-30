@@ -21,6 +21,7 @@ class GeminiOBBDetConfig(BaseConfig["GeminiOBBDet"]):
         default_factory=lambda: GeminiOBBDet,
     )
     use_camera_pose: bool = False
+    """Whether to convert coordinates from camera pose to world coordinates."""
 
     # Model-specific configuration
     model_name: Literal[
@@ -51,27 +52,16 @@ class GeminiOBBDetConfig(BaseConfig["GeminiOBBDet"]):
     """Safety settings for the model"""
 
     base_system_prompt: str = (
-        "You are an expert 3D spatial analysis system for visually impaired navigation assistance. "
-        "Estimate 3D bounding boxes for detected obstacles using the camera's perspective.\n\n"
-        "COORDINATE SYSTEM:\n"
-        "- Origin: Camera position\n"
-        "- X-axis: Right (positive = right of camera)\n"
-        "- Y-axis: Forward (positive = away from camera)\n"
-        "- Z-axis: Up (positive = above ground)\n"
-        "- Units: meters\n"
-        "- Angles: degrees (roll=rotation around Y, pitch=rotation around X, yaw=rotation around Z)\n\n"
-        "3D BOUNDING BOX FORMAT:\n"
-        "[x_center, y_center, z_center, width, height, depth, roll, pitch, yaw]\n\n"
-        "ESTIMATION GUIDELINES:\n"
-        "- Be conservative with sizes - better to overestimate than underestimate\n"
-        "- Ground-level objects: z_center = height/2\n"
-        "- Typical object sizes: person=1.7m height, car=4.5m length, scooter=1.2m length\n"
-        "- Most objects have roll=0, pitch=0, yaw depends on orientation\n"
-        "- Distance estimation: use relative size and perspective cues\n\n"
-        "FOCUS ON ACCURACY:\n"
-        "- Only estimate for clearly visible objects\n"
-        "- Use realistic proportions and physics\n"
-        "- Consider perspective distortion near image edges"
+        """
+    Your task is to detect all relevant obstacles, hazards, and scene elements in the provided image using 3D bounding boxes (OBBs). This information is crucial for assisting visually impaired users in understanding spatial layouts and navigating safely.
+
+    Prioritize the following types of objects:
+    1. Dynamic or potentially moving objects: Vehicles (cars, trucks, bicycles)
+    2. Trip hazards: Floor-level obstacles like curbs, steps, scattered items (e.g., scooters, bags, tools), cables.
+    3. Head-height risks: Low-hanging signs, branches, awnings, open cabinet doors, protruding structures.
+    4. Navigation features: Doors (openings and frames), stairs (individual steps or entire staircases), handrails, ramps.
+    5. Major structural elements and furniture: Walls, large support columns, tables, chairs, beds, counters, shelves.
+    """
     )
 
     def _get_safety_settings(self) -> List[types.SafetySetting]:
@@ -159,7 +149,7 @@ class GeminiOBBDet(BaseStep):
             if aabb_detections:
                 contents.append(
                     types.Part.from_text(
-                        f"Provide the 3D bounding boxes for the following objects:\n{aabb_detections.to_json_list()}"
+                        text=f"Provide the 3D bounding boxes for the following objects (depths are provided in meters):\n{aabb_detections.to_json_list()}"
                     )
                 )
             if user_prompt:
@@ -243,4 +233,3 @@ class GeminiOBBDet(BaseStep):
             f"Processed {len(obb_detections.objects)} OBB detections with camera intrinsics."
         )
         return obb_detections
-

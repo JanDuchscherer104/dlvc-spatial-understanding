@@ -99,6 +99,34 @@ class StrayDataset(BaseStep):
             camera_pose=camera_pose.copy(),
         )
 
+    def __getitem__(self, idx: int) -> DatasetOut:
+        rgb_image = Image.fromarray(self.get_rgb(idx))
+        # Use mode="F" for 32-bit float grayscale to preserve depth information
+        depth_image = Image.fromarray(self.get_depth(idx), mode="F")
+
+        if self.config.resize_depth_to_rgb:
+            Console.with_prefix(self.__class__.__name__, "entrypoint").log(
+                f"Resizing depth image to match RGB dimensions {depth_image.size} -> {rgb_image.size}"
+            )
+            depth_image = depth_image.resize(rgb_image.size, Image.LANCZOS)
+
+        # Get camera intrinsics - scale if resizing was applied
+        camera_intrinsics = self.parser.get_intrinsics()
+        if self.config.resize_depth_to_rgb and rgb_image.size != depth_image.size:
+            # Scale intrinsics to match the image dimensions
+            width, height = rgb_image.size
+            camera_intrinsics = self.get_scaled_intrinsics(width, height)
+
+        # Get the camera pose for the current frame
+        camera_pose = self.get_poses(idx=idx)[0]
+
+        return DatasetOut(
+            rgb_image=rgb_image,
+            depth_image=depth_image,
+            camera_intrinsics=camera_intrinsics.copy(),
+            camera_pose=camera_pose.copy(),
+        )
+
     def get_rgb_dimensions(self) -> Tuple[int, int]:
         """Get the dimensions of RGB images (height, width).
 

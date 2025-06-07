@@ -18,7 +18,6 @@ class DatasetOut(DataModel):
 
     rgb_image: Image
     depth_image: Image
-    user_prompt: Optional[str] = None
     camera_intrinsics: np.ndarray
     """
     3x3 camera intrinsics matrix K:

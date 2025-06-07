@@ -10,7 +10,7 @@ from ...utils import BaseConfig, Console, PathConfig
 class StrayScannerPaths(BaseConfig):
     """Configuration for Stray Scanner dataset paths."""
 
-    dataset_dir: Annotated[Path, Field(default="SmartAIs-Recorded-Data/baustelle")]
+    dataset_dir: Annotated[Path, Field(default="baustelle")]
     """Root directory of the Stray Scanner dataset."""
 
     rgb_video_filename: str = "rgb.mp4"
@@ -82,7 +82,7 @@ class StrayScannerPaths(BaseConfig):
     @classmethod
     def validate_dataset_dir(cls, v: str | Path, info: ValidationInfo) -> Path:
         if isinstance(v, str) or isinstance(v, Path) and not Path(v).is_absolute():
-            pth = PathConfig().root / ".data" / v
+            pth = PathConfig().data / v
         else:
             pth = Path(v)
         assert pth.exists(), f"Dataset root directory {pth} does not exist."
@@ -115,10 +115,10 @@ class StrayScannerPaths(BaseConfig):
         ]
 
         # At least one of these video/image sources must be available
-        missing_files = list(filter(lambda f: not f.exists(), required_files))
-        if missing_files:
-            CONSOLE.warn(
-                f"[red]Required files missing: {', '.join(str(f) for f in missing_files)}"
-            )
+        # missing_files = list(filter(lambda f: not f.exists(), required_files))
+        # if missing_files:
+        #     CONSOLE.warn(
+        #         f"[red]Required files missing: {', '.join(str(f) for f in missing_files)}"
+        #     )
 
         return self

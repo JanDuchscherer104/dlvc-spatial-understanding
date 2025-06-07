@@ -11,7 +11,7 @@ from .console import Console
 
 class PathConfig(SingletonConfig):
     root: Path = Field(default_factory=lambda: PathConfig._detect_root())
-    data: Annotated[Path, Field(default=".data")]
+    data: Annotated[Path, Field(default=".data/SmartAIs-Recorded-Data")]
 
     # data: Annotated[Path, Field(default=".data")]
     env_file: Annotated[Path, Field(default=".env")]

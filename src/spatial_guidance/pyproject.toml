@@ -1,0 +1,30 @@
+[tool.poetry]
+name            = "spatial-guidance"
+version         = "0.1.0"
+description     = "DLVC-SoSe25 - 3D Spatial Scene Understanding and Interactive Audio Guidance for Blind Users"
+authors         = ["DLVC-Group-04"]
+license         = "MIT"
+packages        = [{ include = "spatial_guidance" }]
+
+[tool.poetry.dependencies]
+python                  = "^3.11"
+google-genai            = ">=1.7.0"
+google-generativeai     = ">=0.8.4"
+Pillow                  = ">=11.1.0"
+langchain               = ">=0.3.21"
+pydantic                = "<=2.8.2"
+python-dotenv           = ">=1.1.0"
+rich                    = ">=14.0.0"
+matplotlib              = "3.10.3"
+opencv-python           = "4.11.0.86"
+streamlit               = ">=1.45.1"
+streamlit-webrtc        = ">=0.62.4"
+websockets              = ">=15.0.1"
+sounddevice             = ">=0.5.2"
+ipython  = ">=9.3.0"
+devtools = ">=0.12.2"
+
+
+[build-system]
+requires      = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"

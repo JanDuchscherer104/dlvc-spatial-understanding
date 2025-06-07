@@ -8,7 +8,7 @@ from typing import Annotated, Any, List, Optional, Tuple
 import numpy as np
 from PIL import Image as PILImage
 from PIL.Image import Image
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from ..utils import Console
 from . import DataModel
@@ -106,9 +106,9 @@ def compute_3d_center_from_bbox(
         camera_coords = pixel_to_camera_coordinates(
             pixel_coords, median_depth, camera_intrinsics
         )
-        world_coords = camera_to_world_coordinates(camera_coords, camera_pose)
+        # world_coords = camera_to_world_coordinates(camera_coords, camera_pose)
 
-        return world_coords
+        return camera_coords
 
     except Exception as e:
         Console.with_prefix("compute_3d_center_from_bbox").error(
@@ -162,9 +162,9 @@ def compute_3d_center_from_mask(
         camera_coords = pixel_to_camera_coordinates(
             pixel_coords, median_depth, camera_intrinsics
         )
-        world_coords = camera_to_world_coordinates(camera_coords, camera_pose)
+        # world_coords = camera_to_world_coordinates(camera_coords, camera_pose)
 
-        return world_coords
+        return camera_coords
 
     except Exception as e:
         Console.with_prefix("compute_3d_center_from_mask").error(
@@ -173,13 +173,79 @@ def compute_3d_center_from_mask(
         return None
 
 
+def compute_rotation_from_3d_position(
+    center_3d: Optional[List[float]],
+) -> Tuple[Optional[float], Optional[int]]:
+    """
+    Compute rotation information from 3D position in camera coordinates for BEV representation.
+
+    The rotation represents the angle between the forward axis (z-axis) in a Bird's Eye View (BEV)
+    perspective, computed from metric camera coordinates in the x-z plane.
+
+    Args:
+        center_3d: 3D position [x, y, z] in camera frame where:
+                  - x: right/left (positive right, negative left) → BEV x-axis
+                  - y: up/down (positive up, negative down) → BEV height (not used in rotation)
+                  - z: forward/backward (positive forward) → BEV y-axis (forward direction)
+
+    Returns:
+        Tuple of (rotation_deg, rotation_clock) where:
+        - rotation_deg: BEV rotation angle in degrees from z-axis (forward) in x-z plane
+                       (0° = straight ahead/12 o'clock, measured clockwise from z-axis)
+        - rotation_clock: Single 12-hour clock position (1-12) for BEV orientation
+    """
+    try:
+        if center_3d is None or len(center_3d) != 3:
+            return None, None
+
+        x_cam, y_cam, z_cam = center_3d
+
+        # Check if object is behind camera (negative z)
+        if z_cam <= 0:
+            return None, None
+
+        # Calculate BEV bearing angle in x-z plane using atan2(x, z)
+        # This computes the angle from the forward z-axis to the object position
+        # In BEV: z-axis → forward (y in BEV), x-axis → lateral (x in BEV)
+        # atan2(x, z) returns angle in range [-π, π] from z-axis (forward direction)
+        bearing_rad = math.atan2(x_cam, z_cam)
+        bearing_deg = math.degrees(bearing_rad)
+
+        # Convert to 0-360 degree range for BEV with 0° = forward (12 o'clock)
+        # Positive x (right) gives positive angles (1-6 o'clock in BEV)
+        # Negative x (left) gives negative angles, wrapped to (7-11 o'clock in BEV)
+        if bearing_deg < 0:
+            rotation_deg = 360 + bearing_deg
+        else:
+            rotation_deg = bearing_deg
+
+        # Convert to 12-hour clock position for BEV orientation
+        # Each hour represents 30 degrees (360° / 12 hours)
+        # 12 o'clock = 0° = forward (z-axis), measured clockwise in BEV
+        hour_step = 30.0
+        clock_hour = round(rotation_deg / hour_step) % 12
+        if clock_hour == 0:
+            clock_hour = 12
+
+        return rotation_deg, clock_hour
+
+    except Exception as e:
+        Console.with_prefix("compute_rotation_from_3d_position").error(
+            f"Error computing rotation from 3D position: {e}"
+        )
+        return None, None
+
+
 def compute_rotation_from_bbox(
     bbox: np.ndarray,
     img_size: Optional[Tuple[int, int]] = None,
     camera_intrinsics: Optional[np.ndarray] = None,
-) -> Tuple[Optional[float], Optional[List[int]]]:
+) -> Tuple[Optional[float], Optional[int]]:
     """
-    Compute rotation information from bounding box geometry with FOV-aware mapping.
+    DEPRECATED: Compute rotation information from bounding box geometry.
+
+    This function is kept for backward compatibility but should not be used
+    for new code. Use compute_rotation_from_3d_position instead.
 
     Args:
         bbox: Bounding box coordinates [y0, x0, y1, x1] in pixels
@@ -188,8 +254,8 @@ def compute_rotation_from_bbox(
 
     Returns:
         Tuple of (rotation_deg, rotation_clock) where:
-        - rotation_deg: Rotation in degrees (0 = aligned with x-axis)
-        - rotation_clock: 12-hour clock positions with 1-hour resolution [1, 2, 3, ..., 12]
+        - rotation_deg: Rotation in degrees (0 = straight ahead/12 o'clock)
+        - rotation_clock: Single 12-hour clock position (1-12), None if outside visible FOV
     """
     try:
         y0, x0, y1, x1 = bbox
@@ -210,20 +276,29 @@ def compute_rotation_from_bbox(
             cx = camera_intrinsics[0, 2]
             cy = camera_intrinsics[1, 2]
 
-            # Calculate horizontal FOV
+            # Calculate horizontal FOV for boundary checking
             horizontal_fov_rad = 2 * math.atan(img_width / (2 * fx))
             horizontal_fov_deg = math.degrees(horizontal_fov_rad)
 
-            # Calculate angular position relative to image center
-            # Normalized position from center: -1 (left) to +1 (right)
-            normalized_x = (center_x - cx) / (img_width / 2)
+            # Calculate angular position using proper trigonometry
+            # Angular offset from optical center (positive = right, negative = left)
+            pixel_offset_x = center_x - cx
+            angular_offset = math.degrees(math.atan(pixel_offset_x / fx))
 
-            # Map to angular position within FOV
-            angular_offset = normalized_x * (horizontal_fov_deg / 2)
+            # Check if object is within visible FOV range
+            if abs(angular_offset) > horizontal_fov_deg / 2:
+                # Object is outside visible FOV
+                return None, None
 
-            # Convert to compass bearing (0° = North/12 o'clock, 90° = East/3 o'clock)
-            # Negative angular_offset means object is to the left (counter-clockwise from north)
-            rotation_deg = (90 - angular_offset) % 360
+            # Convert to compass bearing with 12 o'clock = 0° (straight ahead)
+            # Positive angular_offset (right side) maps to positive degrees (1-6 o'clock)
+            # Negative angular_offset (left side) maps to negative degrees, wrapped to (7-11 o'clock)
+            if angular_offset >= 0:
+                # Right side: 0° to +FOV/2 maps to 0° to +FOV/2
+                rotation_deg = angular_offset
+            else:
+                # Left side: -FOV/2 to 0° maps to 360°-FOV/2 to 360°
+                rotation_deg = 360 + angular_offset
         else:
             # Fallback to simple aspect ratio-based rotation
             if width > height:
@@ -233,31 +308,17 @@ def compute_rotation_from_bbox(
                 # Vertically oriented - assume pointing North (12 o'clock)
                 rotation_deg = 0.0
 
-        # Convert to 12-hour clock positions with 1-hour resolution
+        # Convert to 12-hour clock position with 1-hour resolution
         # Each hour represents 30 degrees (360° / 12 hours)
         hour_step = 30.0
 
-        # Generate all 12 clock positions (1-12 o'clock)
-        clock_positions = []
-        for hour in range(1, 13):
-            # 12 o'clock = 0°, 1 o'clock = 30°, 2 o'clock = 60°, etc.
-            hour_angle = ((hour - 1) * hour_step) % 360
-            clock_positions.append(hour_angle)
+        # Convert rotation to clock position
+        # 12 o'clock = 0°, 1 o'clock = 30°, 2 o'clock = 60°, etc.
+        clock_hour = round(rotation_deg / hour_step) % 12
+        if clock_hour == 0:
+            clock_hour = 12
 
-        # Find the closest clock position to our computed rotation
-        rotation_clock = []
-        for i, clock_angle in enumerate(clock_positions):
-            # Calculate angular difference (shortest path)
-            diff = abs((rotation_deg - clock_angle + 180) % 360 - 180)
-            if diff <= hour_step / 2:  # Within ±15° of this hour position
-                rotation_clock.append(i + 1)  # Hour positions 1-12
-
-        # If no exact match, find the closest hour
-        if not rotation_clock:
-            closest_hour = round(rotation_deg / hour_step) % 12
-            if closest_hour == 0:
-                closest_hour = 12
-            rotation_clock = [closest_hour]
+        rotation_clock = clock_hour
 
         return rotation_deg, rotation_clock
 
@@ -309,9 +370,9 @@ class AABBDetection(DataModel):
     """Maximum depth (90th percentile) of the object in the scene in meters"""
 
     rotation_deg: Optional[float] = None
-    """Rotation of the object in degrees, where 0 degrees is North (12 o'clock). Computed from the center of the bounding box relative to camera FOV."""
-    rotation_clock: Optional[List[int]] = None
-    """Clock hour positions (1-12) where the object is located relative to the camera view. Uses 1-hour resolution with FOV-aware mapping."""
+    """BEV rotation angle in degrees from forward z-axis in x-z plane. 0° = straight ahead (12 o'clock), computed from metric camera coordinates. Measured clockwise in Bird's Eye View perspective."""
+    rotation_clock: Optional[int] = None
+    """BEV clock hour position (1-12) where the object is located in Bird's Eye View. Computed from angle in x-z plane with z-axis as forward direction (12 o'clock)."""
 
     processed_: bool = False
 
@@ -469,11 +530,19 @@ class AABBDetection(DataModel):
                         np_mask_full, depth_image, camera_intrinsics, camera_pose
                     )
 
-                    # Compute rotation from bounding box
-                    self.rotation_deg, self.rotation_clock = compute_rotation_from_bbox(
-                        bbox_array, img_size, camera_intrinsics
+                    # Compute rotation from 3D position (prefer mask-based center, fallback to bbox-based)
+                    # Select the 3D center: use mask center if available, otherwise bbox center
+                    center_for_rotation = (
+                        self.center_3d_mask
+                        if self.center_3d_mask is not None
+                        else self.center_3d_bbox
                     )
-
+                    # Compute rotation_deg and rotation_clock from 3D
+                    self.rotation_deg, self.rotation_clock = (
+                        compute_rotation_from_3d_position(center_for_rotation)
+                        if center_for_rotation is not None
+                        else (None, None)
+                    )
                 except Exception as e:
                     CONSOLE.error(
                         f"Error computing 3D parameters for {self.label}:\n"

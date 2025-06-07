@@ -22,14 +22,14 @@ class DatasetOut(DataModel):
     camera_intrinsics: np.ndarray
     """
     3x3 camera intrinsics matrix K:
-            K = [ fx  0  cx ]
-                [  0 fy  cy ]
+                [ fx  0  cx ]
+           K =  [  0 fy  cy ]
                 [  0  0   1 ]
         where (fx, fy) are the focal lengths in pixels and (cx, cy) is the principal point.
     """
     camera_pose: np.ndarray
     """
-    4x4 world-to-camera transformation matrix T_WC:
+    4x4 world-to-camera transformation matrix T_WC in SE(3):
 
             T_WC = [ R | t ]
                    [ 0 | 1 ]

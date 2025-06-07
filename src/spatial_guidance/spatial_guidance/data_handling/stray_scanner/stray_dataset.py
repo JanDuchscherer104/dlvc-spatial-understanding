@@ -12,7 +12,8 @@ from pydantic import Field
 from zenml.steps import BaseStep
 
 from ...data_contracts.dataset import DatasetOut, PipelineIn
-from ...utils import BaseConfig, Console
+from ...utils.base_config import BaseConfig
+from ...utils.console import Console
 from .data_parser import StrayScannerDataParserConfig
 
 

@@ -755,21 +755,17 @@ class DetectionVisualizer:
         """
         info_parts = []
 
-        if detection.center_3d_bbox is not None:
-            x, y, z = detection.center_3d_bbox
-            info_parts.append(f"3D-Bbox: ({x:.1f},{y:.1f},{z:.1f})m")
-
         if detection.center_3d_mask is not None:
             x, y, z = detection.center_3d_mask
             info_parts.append(f"3D-Mask: ({x:.1f},{y:.1f},{z:.1f})m")
+        elif detection.center_3d_bbox is not None:
+            x, y, z = detection.center_3d_bbox
+            info_parts.append(f"3D-Bbox: ({x:.1f},{y:.1f},{z:.1f})m")
 
         if include_rotation and detection.rotation_deg is not None:
-            rotation_info = f"Rot: {detection.rotation_deg:.1f}°"
-            if detection.rotation_clock is not None and detection.rotation_clock:
-                clock_positions = ", ".join(
-                    [f"{hour}h" for hour in detection.rotation_clock]
-                )
-                rotation_info += f" ({clock_positions})"
+            rotation_info = (
+                f"Rot: {detection.rotation_deg:.1f}°, {detection.rotation_clock}h"
+            )
             info_parts.append(rotation_info)
 
         return "\n".join(info_parts) if info_parts else ""

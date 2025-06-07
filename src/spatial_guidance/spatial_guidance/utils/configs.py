@@ -5,8 +5,8 @@ from typing import Annotated, Literal, Optional, Type, Union
 from dotenv import load_dotenv
 from pydantic import Field, ValidationInfo, field_validator
 
+from .base_config import SingletonConfig
 from .console import Console
-from .utils import SingletonConfig
 
 
 class PathConfig(SingletonConfig):

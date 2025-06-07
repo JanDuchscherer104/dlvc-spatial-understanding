@@ -6,8 +6,8 @@ import numpy as np
 from pydantic import Field
 from scipy.spatial.transform import Rotation
 
+from ...utils.base_config import BaseConfig
 from ...utils.console import Console
-from ...utils.utils import BaseConfig
 from .stray_scanner_paths import StrayScannerPaths
 
 

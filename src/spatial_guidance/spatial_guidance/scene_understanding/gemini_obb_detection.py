@@ -10,7 +10,9 @@ from zenml.steps import BaseStep
 from ..data_contracts.aabb_segmentation import AABBDetections
 from ..data_contracts.dataset import DatasetOut
 from ..data_contracts.obb_detection import OBBDetection, OBBDetections, RawOBBDetection
-from ..utils import BaseConfig, Console, PathConfig
+from ..utils.base_config import BaseConfig
+from ..utils.configs import PathConfig
+from ..utils.console import Console
 from ..visualization.detection_visualizer import DetectionVisualizer
 
 

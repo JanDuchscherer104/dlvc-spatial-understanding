@@ -7,13 +7,18 @@ from zenml.materializers.materializer_registry import materializer_registry
 from zenml.pipelines.pipeline_definition import Pipeline
 from zenml.steps import BaseStep
 
+from ..data_contracts import DataModel
+from ..data_contracts.aabb_segmentation import AABBDetections
+from ..data_contracts.dataset import DatasetOut, PipelineIn
 from ..data_handling.stray_scanner.stray_dataset import StrayDatasetConfig
 from ..pipeline.docker_config import DockerConfig
 from ..scene_understanding.gemini_aabb_detection import GeminiAABBDetSeg
-from ..scene_understanding.gemini_obb_detection import GeminiOBBDet
-from ..scene_understanding.visualization_in import get_visualization_in
-from ..utils import BaseConfig, Console
-from ..visualization.scene_visualizer import SceneVisualizerConfig
+from ..scene_understanding.gemini_scene_descriptor import (
+    GeminiSceneDescriptor,
+    GeminiSceneDescriptorConfig,
+)
+from ..utils.base_config import BaseConfig
+from ..utils.console import Console
 from .materializer import PydanticNumpyMaterializer
 from .step_configs import GeminiStepConfig, StepConfig
 
@@ -31,14 +36,12 @@ class PipelineConfig(BaseConfig["SpatialUnderstandingPipeline"]):
             ),
             "detection": PipelineStepSpec(
                 target=GeminiAABBDetSeg(),
-                step_config=GeminiStepConfig(),
+                step_config=GeminiStepConfig(enable_cache=True),
             ),
-            "obb_detection": PipelineStepSpec(
-                target=GeminiOBBDet(),
-                step_config=GeminiStepConfig(),
+            "scene_description": PipelineStepSpec(
+                target=GeminiSceneDescriptorConfig(),
+                step_config=GeminiStepConfig(enable_cache=False),
             ),
-            "get_visualization_in": PipelineStepSpec(target=get_visualization_in),
-            "visualization": PipelineStepSpec(target=SceneVisualizerConfig()),
         }
     )
 
@@ -166,15 +169,18 @@ class SpatialUnderstandingPipeline(Pipeline):
 
         self.dataset = self.make_step(self.config.steps["dataset"])
         self.detection_stage = self.make_step(self.config.steps["detection"])
-        self.obb_detection_stage = self.make_step(self.config.steps["obb_detection"])
-        self.visualization_stage = self.make_step(self.config.steps["visualization"])
-        self.get_visualization_in = self.make_step(
-            self.config.steps["get_visualization_in"]
+        # self.obb_detection_stage = self.make_step(self.config.steps["obb_detection"])
+        # self.visualization_stage = self.make_step(self.config.steps["visualization"])
+        # self.get_visualization_in = self.make_step(
+        #     self.config.steps["get_visualization_in"]
+        # )
+        self.scene_description_stage = self.make_step(
+            self.config.steps["scene_description"]
         )
 
         super().__init__(**self.config.get_pipeline_kwargs(), entrypoint=self.run)
 
-    def run(self, idx: int, user_prompt: Optional[str] = None) -> VisualizationOut:
+    def run(self, idx: int, user_prompt: Optional[str] = None) -> AABBDetections:
         """
         Pipeline entrypoint function.
 
@@ -190,7 +196,7 @@ class SpatialUnderstandingPipeline(Pipeline):
         Returns:
             The final pipeline output.
         """
-
+        CONSOLE = Console.with_prefix(self.__class__.__name__, "run")
         # Create initial pipeline input
         input_data = PipelineIn(idx=idx, user_prompt=user_prompt)
         dataset_out = self.dataset(input_data)  # type: DatasetOut
@@ -200,20 +206,26 @@ class SpatialUnderstandingPipeline(Pipeline):
         aabb_detection_output = self.detection_stage(
             dataset_out
         )  # type: AABBDetections
-        obb_detection_output = self.obb_detection_stage(
-            dataset_out
-        )  # type: OBBDetections
+        # obb_detection_output = self.obb_detection_stage(
+        #     dataset_out
+        # )  # type: OBBDetections
 
-        visualization_in = self.get_visualization_in(
-            dataset_out=dataset_out,
-            aabb_detection_output=aabb_detection_output,
-            obb_detection_output=obb_detection_output,
-        )  # type: VisualizationIn
-        final_output = self.visualization_stage(
-            visualization_in
-        )  # type: VisualizationOut
+        scene_description = self.scene_description_stage(
+            dataset_out, aabb_detection_output
+        )
 
-        return final_output
+        CONSOLE.log(f"[green]Scene description generated: {scene_description}[/green]")
+
+        # visualization_in = self.get_visualization_in(
+        #     dataset_out=dataset_out,
+        #     aabb_detection_output=aabb_detection_output,
+        #     obb_detection_output=obb_detection_output,
+        # )  # type: VisualizationIn
+        # final_output = self.visualization_stage(
+        #     visualization_in
+        # )  # type: VisualizationOut
+
+        return aabb_detection_output
 
     @staticmethod
     def make_step(
@@ -227,7 +239,7 @@ class SpatialUnderstandingPipeline(Pipeline):
         return target
 
     @staticmethod
-    def get_latest_output() -> VisualizationOut:
+    def get_latest_output() -> AABBDetections:
         """
         Loads the output of the latest run of this pipeline as a Python object.
 

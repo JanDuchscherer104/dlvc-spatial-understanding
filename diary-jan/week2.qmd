@@ -1,0 +1,37 @@
+## Week 2 - March 31 - April 4, 2025
+
+### Tasks Worked On
+
+- Play with Gemini Spatial understanding and get initial idea of its capabilities and limitations.​
+- Get general understanding of the project goals.​
+- Implement basic voice to text via OpenAI Whisper (needed for some other task) ~ [Repo](https://gitlab.lrz.de/dlvc04-sose-25/dlvc-04-spatial-understanding/-/tree/main/src/spatial_guidance/spatial_guidance/audio_guidance?ref_type=heads)
+- Reflect upon questions for clarification.​
+- Read Paper [SpatialBot: Precise Spatial Understanding with Vision Language Models](https://arxiv.org/abs/2406.13642)
+  - Small Model (~3B). So its representational power is most likely rather limited.
+  - Seems to be capable to query depths of explicit objects.
+- Reflect general ideas for the holistic project.​
+  - Dynamic Semantic Scene Graph, SLAM, 3D native object detection, etc.​
+
+### Problems Encountered
+
+- Ambiguities w.r.t. project stages.​
+  - Depth-enhanced visual understanding (single frame vs multi-frame) vs.​
+  - Explicit scene modeling with dynamic scene graphs​
+  - End-to-end application using existing models
+- How does the Data look like? What features are available?​
+
+### Plans for Next Week
+
+- Explore basic Pipeline structure for single frame spatial understanding task.​
+- Implement basic StrayScanner data parser.
+
+### Time Spent
+
+| Task                     | Time Spent |
+|--------------------------|------------|
+| read paper         | 0.6 hours    |
+| gemini notebooks          | 0.2 hours    |
+| further considerations     | 0.2 hours    |
+| **Total**                 | **1 hour** |
+
+---

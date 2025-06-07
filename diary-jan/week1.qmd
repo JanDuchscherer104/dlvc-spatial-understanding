@@ -1,0 +1,34 @@
+## Week 1 - March 24 - March 28, 2025
+
+### Tasks Worked On
+
+- **Gemini Exploration**: Get familiar with two example notebooks on how to use Gemini Spatial Understanding (Gemini 2.0 flash) via the Google API
+- **Reflection** upon possible project goals and directions, as well as architectures for the "full" pipeline.
+  - How should the data look like at different stages of the pipeline?
+  - Should we use LangChain?
+  - How to best map the 2D detections to 3D data?
+  - How to best represent the 3D scene (eg. dynamic scene graph). Can normal LLMs handle for example a json description of the scene?
+  - What best to use for voice to text and text to voice? (Gemini, Whisper, etc.)
+- **Adaptation of util functions**: Adaptation of previously written utility functions for Config handling, logging etc.
+
+### Problems Encountered
+
+- **Ambiguities**: Initial ambiguities w.r.t.\ project goals.
+- Gemini 2.0 flashes 3D OOBBs do not seem reliable.
+- What parts of the application should finally run on the iPhone? Will we need to port everything to Swift or can we simply stream from iPhone to Python and vice versa?
+
+### Plans for Next Week
+
+- Research on one-shot end to end multimodal detection models.
+- Explore data structures (StrayScanner, Record3D)
+- Explore potential network architectures.
+- (maybe) Combination of depth data w/ detections.
+
+### Time Spent
+
+| Task                     | Time Spent |
+|--------------------------|------------|
+| utility code           | 2 hours    |
+| setting up the repo          | 0.5 hours    |
+| initial research     | 1 hours    |
+| **Total**                 | **3.5 hours** |

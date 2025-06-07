@@ -1,0 +1,44 @@
+## Week 7 May 5 - May 9, 2025
+
+### Tasks Worked On
+- **Resolved ZenML Issue**:
+    - Separated the step configuration and functional step parameters to avoid issues with ZenML's step instantiation by refactoring the pipeline to split static step configuration (resource settings, docker_config, retry settings) into dedicated `StepConfig` classes that are serialized at pipeline startup, while keeping functional logic or parameters to be injected within the step's own environment via their respective configs.
+
+        ```python
+        class PipelineConfig(BaseConfig["SpatialUnderstandingPipeline"]):
+            steps: Dict[str, PipelineStepSpec] = Field(
+                default_factory=lambda: {
+                    "dataset": PipelineStepSpec(
+                        target=StrayDatasetConfig(),
+                    ),
+                    "detection": PipelineStepSpec(
+                        target=GeminiAABBDetSegConfig(temperature=0.5), # functional parameters
+                        step_config=GeminiStepConfig(enable_cache=True), # step configuration
+                    ),
+                    ...
+                }
+            )
+        ```
+
+    - Fixed a few other issues related to ZenML and our utilized design pattern and path handling:
+      - Ensure correct mounting of the data directories, and source code in the ZenML Docker container.
+      - Fixed the `PydanticNumpyMaterializer` to properly handle numpy arrays and PIL images of type float32.
+- **Makefile**:
+  - Created a `Makefile` to simplify the initialization of the ZenML environment, including the creation of a local Docker registry, building and pushing the Docker base images.
+- **Setup Instructions**: Added a [SETUP.md](https://gitlab.lrz.de/dlvc04-sose-25/dlvc-04-spatial-understanding/-/blob/main/SETUP.md?ref_type=heads) file that describes how to set up the conda environment, ZenML and the Docker registry. Also updated the `requirements.txt` for the conda environment to include all necessary dependencies for the pipeline and its stages.
+- **Updated README**: Updated the [README.md](https://gitlab.lrz.de/dlvc04-sose-25/dlvc-04-spatial-understanding/-/blob/main/README.md?ref_type=headss) file to provide a concise overview on how to use the `SpatialUnderstandingPipeline` and its stages.
+
+
+### Problems Encountered
+- **Invested too much time in ZenML and Framework**: I invested a lot of time in understanding ZenML and adapting it to our Config-as-Factory pattern, which turned out to be more complex than necessary for our use case. Debugging ZenML issues was also quite time-consuming as it is not possible to use a debugger when running the pipeline using the `LocalDockerOrchestrator`. It stressed me out quite a bit, to again have fallen into that rabbit hole of over-engineering and trying to write a production-grade solution, where this was never the goal of this project. I should have focused more on the core functionality and less on the framework various MLOps features and ZenML's capabilities.
+
+### Plans for Next Week
+- **Gemini VLM**: Explore new capabilities of Gemini 2.5 (can do segmentation and trajectory planning natively).
+
+### Time Spent
+
+| Task                                       | Time Spent     |
+| ------------------------------------------ | -------------- |
+| Bug fixes in ZenML Pipeline           | 4 hours      |
+| Makefile and Documentation            | 0.75 hours      |
+| **Total**                                  | **4.75 hours** |

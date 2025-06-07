@@ -1,0 +1,199 @@
+## Week 8 May 5 - May 9, 2025
+
+### Tasks Worked On
+
+- **Gemini 3D Spatial Understanding**: Explored the capabilities of the Gemini 2.0 and 2.5 moddels for 3D spatial understanding based on explored use-cases in this [notebook](https://colab.research.google.com/github/google-gemini/cookbook/blob/main/examples/Spatial_understanding_3d.ipynb#scrollTo=dRicv4wSgGup)
+
+- **AABB Detection and Segmentation**: Starting with the Gemini 2.5 family, Gemini models are now capable of not only detecting items but also segmenting them and providing a mask of their contours. This feature is particularly useful to our usecase to allow for robust depth extraction without the need for a separate segmentation stage.
+
+  - Created an example notebook for the usecase of joint detection and segmentation using Gemini 2.5 pro and flash, which can be found [here](https://gitlab.lrz.de/dlvc04-sose-25/dlvc-04-spatial-understanding/-/blob/main/notebooks/gemini_aabb_segmentation.ipynb?ref_type=heads). First, we tried using `gemini-2.0-flash-preview-04-17`, to detect and segment all
+
+    ::: {layout-ncol=1}
+    ![Segmentation using `gemini-2.5-flash-preview-04-17`](figures/segmentation_wk7_2.5flash_baustelle.png){width=95%}
+    :::
+
+    For this result, the following prompt was used:
+
+    ```
+    Provide the segmentation masks for all objects that are relevant in the context of a scene description to guide visually impaired users.
+    Output a JSON list of segmentation masks where each entry contains the 2D
+    bounding box in the key "box_2d", the segmentation mask in key "mask", and
+    the text label in the key "label". Use descriptive labels.
+    ```
+    The model returns the segmentation mask as a base64-encoded PNG image of shape 256x256 pixels, as well as the 2D bounding box in the format `[y_min, x_min, y_max, x_max]` normalized to 0-1000. The segmentation mask can then be decoded, resized to the bounding box's pixel dimensions and moved to the correct location in the image. Thresholding at a given confidence level (e.g., $\geq$ 127) yields a binary mask that can be used for depth extraction.
+
+    The following images show an attempt to obtain segmentation masks for the walkable area in the scene.
+
+    ::: {layout-ncol=2}
+    ![Segmentation using `gemini-2.0-flash`](figures/gemini_2.5-flash_is_wakable.png)
+    ![Segmentation using `gemini-2.5-flash-preview-04-17`](figures/gemini_2.5-flash_is_wakable_2.png)
+    :::
+
+    The left figure shows a partial segmentation of the walkable area, where the top part of the image is not segmented correctly. The corresponding bounding box would have needed to cover the entire image. The right figure shows an attempt to perform segmentation of the walkable area without grouding the segmentation in a given bounding box.
+
+
+
+
+  - **3D Object Bounding Boxes**: Gemini can detect 3D oriented bounding boxes (OBBs) in images, where it provides the the center coordinates and dimensoins of the bounding box in metric units, as well as the roll, pitch and yaw angles in degrees. These detections would allow us to create a bird's eye view (BEV) representation of the scene, which is useful for navigation tasks.
+  - Experimented with different models and their capabilities for 3D spatial understanding, including AABB detection, segmentation, and trajectory planning.
+  ![]
+
+
+- An overview of the [Gemini Model Zoo](https://ai.google.dev/gemini-api/docs/image-understanding) for Image Understanding.
+- An overview of all [available Gemini models](https://ai.google.dev/gemini-api/docs/models) and their capabilities.
+- Experimented with different models and their capabilities for 3D spatial understanding.
+  - Most reliable: `gemini-2.0-flash` for detecting 3D OBBs.
+- Starting with the Gemini 2.5 models, Gemini models are trained to not only detect items but also provide segmentation masks of their contours.
+
+
+- **Multi-View Correspondence Prototyping**
+  - Single evaluation of  `gemini-2.5-pro-exp-03-25` for point tracking across views.
+
+::: {layout-ncol=2}
+![**a)** Gemini identifying obstacles in the initial scene.](figures/gemini_2.5-pro_correspondence_1.png){width=49%}
+![**b)** Gemini re-identifying the same obstacles after a short time gap or from a shifted perspective.](figures/gemini_2.5-pro_correspondence_2.png){width=49%}
+
+**Figure:** *Demonstration of Gemini's multi-view spatial understanding. (a) The model is prompted to identify potential obstacles for a visually impaired user in the initial scene. (b) The same obstacles should be re-identified from a minimally different viewpoint, using the coordinates and labels generated in (a) as references.*
+:::
+The first inference was performed using the following prompt to identify potential obstacles in the scene by pointint them out in the image:
+
+  ```
+  Point to the all obstacles in the image, that might be dangerous for a person with visual impairment. List no more than 6 items.
+  The answer should follow the json format: [{"point": <point>, "label": <label1>}, ...]. The points are in [y, x] format normalized to 0-1000.
+  The point labels should be 'a', 'b', 'c' etc. based on the provided list.
+  ```
+
+Given the list of points and labels, a new instance of Gemini was then prompted to re-identify the same obstacles in a second image, which was taken from a slightly different perspective or after a short time gap. The prompt used for this inference was:
+
+  ```
+  For the following images, predict if the points referenced in the first image are in frame.
+  If they are, also predict their 2D coordinates.
+  Each entry in the response should be a single line and have the following keys:
+  If the point is out of frame: 'in_frame': false, 'label' : <label>.
+  If the point is in frame: 'in_frame', 'point', 'label'.
+  ```
+
+
+### Problems Encountered
+
+- **3D Detection Output Inconsistencies**
+  - Minor wording changes in the prompt (e.g., "normalized to 0–1000") caused models to revert to AABBs.
+  Example of inconsistent output format:
+    ```json
+    {
+      "label": "scooter",
+      "box_3d": [185, 316, 376, 406],
+      "box_3d": [254, 340, 375, 396]
+    },
+    ```
+  - A likely reason for this was the instruction: `Coordinates and sizes are normalized to 0-1000.` which conditioned the model towards detecting AABBs instead of OBBs.
+
+- **Multiview Inaccuracy**
+  - Correspondences were often imprecise or incorrect despite minimal viewpoint change and clear re-occourences of entities.
+
+- **Segmentation Bounding Boxes**
+  - Gemini struggles to provide valid segmentation masks that are not segmenting a single object inside an AABB.
+
+- **Trajectory Planning**
+  - Gemini managed to predict accurate trajectories for prompts that provide specific information about the objects in a scene.
+  A general prompt without referencing specific obstactles, and only providing the target, yielded invalid trajectories which collided with obstacles in the scene.
+
+
+### Image Understanding Summary
+
+Based on the [Gemini Image Understanding documentation](https://ai.google.dev/gemini-api/docs/image-understanding), the primary capabilities and usage patterns include:
+
+- **Image Input Methods**
+
+  - **File API**
+    - Upload via `client.files.upload(file="path/to/img.jpg")`.
+    - Use when total request size (image + text + other) > 20 MB or to reuse the same image in multiple calls.
+  - **Inline Data** (for single images, small payloads < 20 MB)
+      ```python
+      types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
+      ```
+  - **Multiple Images**
+    - Provide a list mixing File references and inline `google.genai.types.Part` objects in `*.contents` to compare or contrast images in one request.
+
+- **Supported Image MIME Types**
+  - `image/png`
+  - `image/jpeg`
+  - `image/webp`
+  - `image/heic`
+  - `image/heif`
+
+- **Segmentation Workflow (2.5+)**
+
+  - Model returns a JSON list of entries with:
+
+    - `box_2d`: same normalized format.
+    - `label`: descriptive string.
+    - `mask`: base64-encoded PNG probability map (0–255).
+  - Post-process: decode the PNG, resize to the box’s pixel dimensions, then threshold at your chosen confidence (e.g., >=127).
+
+- **Best Practices**
+
+  - Ensure correct EXIF orientation and use sharp, well-lit images.
+  - Place your text prompt **after** all image parts in the `contents` array.
+  - Use the File API for large or repeatedly used images; inline for one-off small assets.
+  - For multi-step pipelines (e.g., detect→segment→describe), split into separate requests with minimal schemas.
+
+---
+
+### google.genai.types Configuration Summary
+
+The `google.genai.types` module defines the building blocks for constructing `generate_content` requests:
+
+- **Contents (`ContentUnion`)**
+
+  - Accepts **strings** (plain text prompts) and **`Part`** objects (binary data, files, blobs).
+  - **Inline binary**:
+
+    ```python
+    types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+    ```
+  - **File references**:
+
+    ```python
+    types.Part.from_uri(file_uri="gs://...", mime_type="image/jpeg")
+    ```
+
+- **`mime_type`**
+
+  - An IANA media type that tells the API how to interpret the binary part ~ [Google GenAI Docs](https://cloud.google.com/vertex-ai/generative-ai/docs/samples/generativeaionvertexai-gemini-controlled-generation-response-schema).
+  - **Images**: `image/png`, `image/jpeg`, `image/webp`, `image/heic`, `image/heif`
+  - **Audio/Video**: e.g., `audio/wav`, `video/mp4`
+  - **Documents**: e.g., `application/pdf`
+
+- **`GenerateContentConfig`** (model configuration)
+
+  - **Steering**:
+    - `system_instruction`: high-level directive (e.g., “Answer concisely”).
+
+  - **Sampling & Control**:
+    - `temperature`, `top_p`, `top_k`, `seed` for randomness.
+    - `max_output_tokens`, `stop_sequences`, `candidate_count` for length and termination.
+  - **Structured Output**:
+    - `response_mime_type` (default is plain text):
+      - `application/json` → JSON following your `response_schema`.
+      - `text/x.enum`  → select a single enum value.
+    - `response_schema` → Pydantic `BaseModel`, `genai.types.Schema`, or equivalent dict.
+
+  - **Advanced Features**:
+    - `presence_penalty`, `frequency_penalty` (diversity control).
+    - `response_logprobs` for token-level probabilities.
+    - Function calling (`FunctionDeclaration`), retrieval tools, safety settings.
+
+
+### Plans for Next Week
+
+### Time Spent
+
+| Task                                       | Time Spent     |
+| ------------------------------------------ | -------------- |
+| Prompt engineering + model experimentation | 1.5 hours      |
+| 3D object detection + BEV rendering        | 2 hours      |
+| Segmentation integration + parsing         | 0.5 hours      |
+| Multiview correspondence experiments       | 0.5 hours      |
+| Prompt tuning + path planning evaluation   | 0.5 hours      |
+| **Total**                                  | **5 hours** |

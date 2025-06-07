@@ -1,0 +1,39 @@
+## Week 5-6 April 21 - May 02, 2025
+
+### Tasks Worked On
+
+- **Pipeline & Stage Containerization**: Allow "easy" configuration of different Docker environments for each pipeline stage. All resulting images are pushed to a local or GHCR registry.
+  - Implemented a [`DockerConfig`](https://gitlab.lrz.de/dlvc04-sose-25/dlvc-04-spatial-understanding/-/blob/main/src/spatial_guidance/spatial_guidance/pipeline/docker_config.py?ref_type=heads) in which the user can specify the base image, additional pip or apt packages, environment variables, build and run options.
+- **Read Paper [SpatialVLM: Endowing Vision-Language Models with Spatial Reasoning Capabilities](https://arxiv.org/abs/2401.12168)**:
+    - Lifts 2D images to metric 3D point clouds via depth estimation.
+    - Performs detection, segmentation and coordinate canonicalization of all objects in the scene to obtain ground truths for the spatial relationships between objects in the scene.
+    - Uses a VLM to answer questions about spatial relationships between objects in the scene, such as "How far is object [A] form object [B]?", where the ground truth is provided by the spatial graph of the scene.
+  - Relevant features for our project:
+    - For every object's point cloud, extracts the centroid, volume and pairwise distances.
+    - Performs *canonical frame alignment* by determining a dominant plane in the scene (e.g., the ground plane) by using RANSAC and computing the new scene origin based on the camera pose's projection onto this plane.
+    - Employs pipeline to answer questions about spatial relationships between objects in the scene by providing the model with a dense spatial graph of the scene, where nodes are objects and edges represent euclidean distances between objects.
+- Implemented methods in the `SpatialUnderstandingPipeline` to retrieve the output data from the artifact store, allowing us to access the results of each pipeline stage.
+  - `get_latest_output() -> AABBDetections`: Returns the output of the final step from the most recent pipeline run.
+  - `get_stage_names(run_idx: int = 0) -> List[str]`: Returns the list of stage names from a specific run.
+  - `get_output_of_stage(stage_name: str, run_idx: int = 0) -> DataModel`: Retrieves the output of a given stage from a specified run.
+  - `get_all_outputs(run_idx: int = 0) -> Dict[str, DataModel]`: Returns a dictionary of all outputs from all stages for a given run.
+
+### Problems Encountered
+- **Configuration of ZenML Steps  Compatibility**:
+  - ZenML instantiates pipeline steps within isolated environments and does not accept step arguments provided at pipeline instantiation.
+- Using ZenMLs `LocalDockerOrchestrator` instead of the `LocalOrchestrator` to allow concurrent execution of parallel pipeline stages and to allow each stage to run in its own environment turned out to be quite challenging, as our experience with both Docker and ZenML was limited.
+  - Issues installing our local python package (`spatial_guidance`) in the Docker container.
+  - Setting up the Docker registry to allow reusing different layers of the used Docker images.
+
+
+### Plans for Next Week
+- **Fix Pipeline Issues**: Resolve the mentioned ZenML issues by separating step configuration and functional parameters.
+- Explore [VQASynth](https://github.com/remyxai/VQASynth) (open-source implementation of SpatialVLM) to see if it can be used for our project.
+
+### Time Spent
+| Task                                       | Time Spent     |
+| ------------------------------------------ | -------------- |
+| Pipeline & Stage Containerization          | 6.5 hours      |
+| Extend the pipeline                        | 0.75 hours      |
+| Reading SpatialVLM paper                  | 0.75 hours      |
+| **Total**                                  | **8.0 hours**  |

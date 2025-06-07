@@ -1,0 +1,35 @@
+project:
+  type: book
+  output-dir: _output
+
+book:
+  title: "3D Spatial Scene Understanding"
+  subtitle: "Deep Learning in Visual Computing"
+  date: today
+  date-format: long
+  chapters:
+    - index.qmd
+    - week1.qmd
+    - week2.qmd
+    - week3.qmd
+    - week4.qmd
+    - week5..6.qmd
+    - week7.qmd
+    - week8.qmd
+    - week9.qmd
+    - week10.qmd
+    - week9-app.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+  pdf:
+    pdf-engine: pdflatex
+    execute:
+      enabled: true
+      eval: true
+      echo: true
+      freeze: auto
+      engine: python
+      python: "/opt/homebrew/Caskroom/miniconda/base/envs/dlvc/bin/python"

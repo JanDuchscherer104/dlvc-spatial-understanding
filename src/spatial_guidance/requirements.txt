@@ -18,10 +18,11 @@ rich>=13.9.4
 devtools>=0.12.2
 #####################
 # OpenAI
-openai>=1.68.2
+# openai>=1.68.2
 # StrayVis
 # open3d via `conda install -c conda-forge open3d`
 matplotlib
 opencv-python
 # ZenML
-zenml[server]>=0.81.0
+# zenml[server]>=0.81.0
+streamlit>=1.45.1

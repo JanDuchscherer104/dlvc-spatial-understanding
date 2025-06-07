@@ -1,0 +1,11 @@
+[project]
+name = "dlvc-spatial-understanding"
+version = "0.1.0"
+dependencies = [
+    "streamlit>=1.45",
+    "streamlit-webrtc",
+    "google-generativeai>=0.5",
+    "google-genai>=1.7",
+    "sounddevice",
+    "websockets"
+]

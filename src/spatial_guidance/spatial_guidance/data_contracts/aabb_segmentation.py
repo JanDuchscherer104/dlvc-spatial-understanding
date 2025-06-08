@@ -619,12 +619,13 @@ class AABBDetections(DataModel):
         for obj in self.objects:
             detection_dict = {
                 "label": obj.label,
-                # "bbox": (
-                #     obj.box_2d.tolist()
-                #     if hasattr(obj.box_2d, "tolist")
-                #     else list(obj.box_2d)
-                # ),
+                "bbox": (
+                    obj.box_2d.tolist()
+                    if hasattr(obj.box_2d, "tolist")
+                    else list(obj.box_2d)
+                ),
                 "depth": obj.med_depth,
+                "rotation_clock": obj.rotation_clock,
             }
             detections_list.append(detection_dict)
 

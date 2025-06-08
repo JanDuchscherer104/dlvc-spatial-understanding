@@ -6,7 +6,6 @@ from google.genai import types
 from PIL import Image as PILImage
 from PIL.Image import Image
 from pydantic import Field
-from zenml.steps import BaseStep
 
 from ..data_contracts.aabb_segmentation import (
     AABBDetection,
@@ -72,43 +71,25 @@ class GeminiAABBDetSegConfig(BaseConfig["GeminiAABBDetSeg"]):
     """Safety settings for the model"""
 
     base_system_prompt: str = (
-        # "Your task is to detect and segment objects in the provided image, which are relevant for a visually impaired "
-        # "person navigating the scene. "
-        # "Prioritize potential hazards like obstacles, entities that might be in motion (e.g. vehicles, revolving doors), "
-        # ""
-        # "Do not include items that are not relevant to the task, such as far-away objects, buildings, sky, or decorative objects."
-        # "{format_instructions}"
-        # "The segmentation mask must be provided as a base64 encoded PNG."
-        # "Always provide valid AABBs and base64 encoded segmentation masks in the exact way you were trained. "
-        # "You are an advanced VLM, trained for object detection and segmentation. "
         "You are an advanced VLM, trained for precise obstacle detection and segmentation to help visually-impaired users navigate. "
-        "Only detect objects that:\n"
-        # "1. Might move or collide (vehicles, bikes, people).\n"
-        # "2. Trip hazards that lie on the walking surface (cords, curbs, scooters).\n"
-        # "3. Obstruct head height (overhangs, low signs, branches).  "
-        # "4. Serve as navigation landmarks (doors, stairs, ramps, handrails, crossings).  "
+        "Based on the image provided, you can operate in two modes:\n\n"
+        "1. **FULL DETECTION MODE** (when no specific user request is given): Detect and segment ALL objects relevant for navigation including:\n"
+        "   - Moveable hazards: objects which can move (vehicles, cyclists, trains, revolving doors, escalators)\n"
+        "   - Trip hazards: cords, curbs, scooters, clutter, obstacles lying on walking surfaces\n"
+        "   - Head-level hazards: low signs, branches, overhangs\n"
+        "   - Navigation landmarks: doors, stairs, ramps, handrails, crossings, elevator entries\n\n"
+        "2. **SUBSET DETECTION MODE** (when user requests specific objects): Focus ONLY on detecting and segmenting the specific objects, categories, or types mentioned in the user's request. Be precise and only return objects that match the user's criteria.\n\n"
+        "Always ignore irrelevant scene elements like far-away objects, buildings, sky, or decorative objects unless specifically requested.\n"
+        "The output should be a JSON list of objects. Each object must conform to the provided schema with unique and descriptive labels.\n"
+    )
+
+    default_prompt: str = (
+        "FULL DETECTION MODE: Detect all navigation-relevant objects including:\n"
         "- Moveable hazards: all objects which can move (e.g. vehicles, cyclists, trains)\n"
         "- Trip hazards: cords, curbs, scooters, clutter, arbitrary obstacles lying on the walking surface\n"
         "- Head-level hazards: low signs, branches, overhangs\n"
-        "- Navigation landmarks: doors, stairs, ramps, handrails, crossings, elevator entries, escalators, \n"
-        "Ignore other scene elements that are not relevant to the task, such as far-away objects, buildings, sky, or decorative objects.\n"
-        "The output should be a JSON list of objects. Each object in the list must conform to the provided schema. Make sure to provide unique and descriptive labels for each object.\n"
+        "- Navigation landmarks: doors, stairs, ramps, handrails, crossings, elevator entries, escalators\n"
     )
-    # base_system_prompt: str = (
-    #     "You are a component in an AI system for assisting visually impaired users. "
-    #     "You are an advanced VLM, trained for obstacle detection and segmentation to help visually-impaired users navigate. "
-    #     "Based on the image provided, detect and segment objects that are relevant for navigation. "
-    #     "Only detect objects that:\n"
-    #     "  - Are moveable hazards: all objects which can move (e.g. vehicles, cyclists, trains, revolving doors, escalators).\n"
-    #     "  - Are trip hazards: cords, curbs, scooters, clutter, arbitrary obstacles lying on the walking surface.\n"
-    #     "  - Are head-level hazards: low signs, branches, overhangs.\n"
-    #     "  - Serve as navigation landmarks: doors, stairs, ramps, handrails, crossings, elevator entries, escalators.\n"
-    #     "Ignore other scene elements that are not relevant to the task, such as far-away objects, buildings, sky, or decorative objects.\n"
-    #     # "Your output must strictly adhere to the provided JSON schema to ensure system compatibility. "
-    #     "The output should be a JSON list of objects. Each object in the list must conform to the provided schema. Make sure to provide unique and descriptive labels for each object.\n"
-    #     # "For the \'mask\' field, provide ONLY the valid base64 encoded string of the PNG image. Do not include any prefixes like \'data:image/png;base64,\' or any other text. "
-    #     # "The base64 string for \'mask\' must only contain valid ASCII characters (A-Z, a-z, 0-9, +, /, =). "
-    # )
 
     def _get_safety_settings(self) -> List[types.SafetySetting]:
         """Convert safety settings from config to genai types."""
@@ -133,7 +114,7 @@ class GeminiAABBDetSegConfig(BaseConfig["GeminiAABBDetSeg"]):
         )
 
 
-class GeminiAABBDetSeg(BaseStep):
+class GeminiAABBDetSeg:
     """Detection model using Google's Gemini multimodal model with structured output parsing.
 
     Inherits from PipelineStage with explicitly defined input and output types.
@@ -154,18 +135,31 @@ class GeminiAABBDetSeg(BaseStep):
 
         CONSOLE.log(f"Initialized Gemini detector with model: {self.config.model_name}")
 
-    def entrypoint(
-        self, input_data: DatasetOut
+    def run_aabb_detection(
+        self,
+        input_data: DatasetOut,
+        user_prompt: Optional[str] = None,
+        subset_mode: bool = False,
     ) -> Annotated[AABBDetections, "Detection-Results"]:
         """Process a frame through the detection model.
 
         Args:
             input_data: DatasetOut object containing rgb_image, depth_image and user_prompt
+            user_prompt: Optional user prompt text to guide the detection
 
         Returns:
             Detection results with object metadata and visualizations
         """
-        raw_detections = self._detect(input_data.rgb_image, input_data.user_prompt)
+        # Decide which prompt to pass to Gemini
+        if subset_mode and user_prompt:
+            detection_prompt = (
+                f"SUBSET DETECTION MODE: {user_prompt}\n"
+                "Only detect and segment objects that match this specific request."
+            )
+        else:
+            detection_prompt = user_prompt
+
+        raw_detections = self._detect(input_data.rgb_image, detection_prompt)
 
         if not raw_detections:
             # Return empty detections if nothing was found, but still provide original images for context
@@ -228,7 +222,10 @@ class GeminiAABBDetSeg(BaseStep):
             ]
             if user_prompt:
                 contents.append(types.Part.from_text(text=user_prompt))
+            else:
+                contents.append(types.Part.from_text(text=self.config.default_prompt))
 
+            # TODO: client should be provided by our GeminiClient class!
             client = genai.Client(api_key=PathConfig().get_api_key("GOOGLE_API_KEY"))
 
             response = client.models.generate_content(
@@ -236,10 +233,11 @@ class GeminiAABBDetSeg(BaseStep):
                 contents=contents,
                 config=self.config.get_generation_config(),
             )
+            parsed_detections: list[RawAABBDetSeg]
             if response.parsed is not None:
-                parsed_detections = response.parsed
+                parsed_detections_raw = response.parsed
                 parsed_detections = [
-                    RawAABBDetSeg.model_validate(det) for det in parsed_detections
+                    RawAABBDetSeg.model_validate(det) for det in parsed_detections_raw
                 ]
             else:
                 CONSOLE.log(
@@ -261,7 +259,7 @@ class GeminiAABBDetSeg(BaseStep):
 
             if not parsed_detections:
                 CONSOLE.warn(
-                    f"Gemini returned no parsable results after _parse_json. Original text was: {raw_json_output[:200]}"
+                    f"Gemini returned no parsable results after _parse_json. Original text was: {raw_json_output[:200] if raw_json_output else 'None'}"
                 )
                 return []
 

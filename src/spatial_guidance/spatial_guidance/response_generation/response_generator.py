@@ -4,18 +4,14 @@ Uses pure Gemini models to generate contextual responses from structured detecti
 NO hardcoded rules or manual NLP processing - everything is inferred by Gemini.
 """
 
-import asyncio
-import json
-import os
 from enum import Enum
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from google import genai
 from google.genai import types
 
 from ..data_contracts.aabb_segmentation import AABBDetection, AABBDetections
-from ..gemini_client import OperationalMode
-from ..utils import Console, PathConfig
+from ..gemini_client import GeminiClient, GeminiClientConfig, OperationalMode
+from ..utils import Console
 
 
 class DirectionalStyle(Enum):
@@ -41,25 +37,19 @@ class ResponseGenerator:
     Simplified implementation that uses the structured JSON output from detections.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        gemini_client: Optional[GeminiClient] = None,
+        model_name: str = "gemini-1.5-flash",
+    ) -> None:
         """Initialize the response generator with Gemini client."""
         self.console = Console.with_prefix(self.__class__.__name__)
-
-        # Initialize Gemini client
-        if api_key is None:
-            # Use PathConfig to load API key from .env file
-            path_config = PathConfig()
-            api_key = path_config.get_api_key("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "GOOGLE_API_KEY not found in .env file or environment variables"
-            )
-
-        # Create Gemini client
-        self.client = genai.Client(api_key=api_key)
+        self.gemini_client = gemini_client or GeminiClient(
+            GeminiClientConfig(model_name=model_name)
+        )
 
         # Model configuration for response generation
-        self.model_name = "gemini-1.5-flash"
+        self.model_name = model_name
         self.generation_config = types.GenerateContentConfig(
             temperature=0.7,
             top_p=0.9,
@@ -94,12 +84,14 @@ class ResponseGenerator:
             prompt = self._create_prompt(detections_json, mode, user_query)
 
             # Generate response using Gemini
-            response = self.client.models.generate_content(
+            self.gemini_client.add_message("user", prompt, tags=["response"])
+            response = self.gemini_client.client.models.generate_content(
                 model=self.model_name,
                 contents=[types.Part.from_text(text=prompt)],
-                config=self.generation_config,
+                generation_config=self.generation_config,
             )
             result = str(response.text).strip() if response.text else ""
+            self.gemini_client.add_message("assistant", result, tags=["response"])
 
             self.console.log(
                 f"Generated response for {mode.value} mode: {len(result)} characters"

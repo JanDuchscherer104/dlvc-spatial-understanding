@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-from google import genai
-from google.genai import types
 
 from ..data_contracts.aabb_segmentation import AABBDetections
 from ..data_contracts.dataset import DatasetOut
@@ -28,24 +26,22 @@ class ScenePipeline:
         self, dataset_dir: Path, model_name: str, is_rotated: bool = True
     ) -> None:
         self.console = Console.with_prefix(self.__class__.__name__, "__init__")
+        gemini_config = GeminiClientConfig(
+            api_key=PathConfig().get_api_key("GOOGLE_API_KEY"),
+            model_name=model_name,
+            max_history_length=20,
+            context_window_size=10,
+        )
+        self.gemini_client = GeminiClient(gemini_config)
+
         self.dataset = self._create_dataset(dataset_dir, is_rotated)
         self.detector = self._create_detector(model_name)
         self._frame_cache: Dict[int, DatasetOut] = {}
         self._det_cache: Dict[int, AABBDetections] = {}
         self._subset_det_cache: Dict[Tuple[int, str], AABBDetections] = {}
 
-        # Initialize the new modular components
-        gemini_config = GeminiClientConfig(
-            api_key=PathConfig().get_api_key("GOOGLE_API_KEY"),
-            model_name=model_name,
-            max_history_length=20,
-            context_window_tokens=8000,
-            auto_mode_detection=True,
-            default_mode=OperationalMode.GENERAL_SCENE,
-        )
-        self.gemini_client = GeminiClient(gemini_config)
         self.response_generator = ResponseGenerator(
-            api_key=PathConfig().get_api_key("GOOGLE_API_KEY")
+            gemini_client=self.gemini_client, model_name=model_name
         )
         # Set preferred response styles
         self.response_generator.set_response_styles(
@@ -66,7 +62,7 @@ class ScenePipeline:
 
     def _create_detector(self, model_name: str) -> GeminiAABBDetSeg:
         cfg = GeminiAABBDetSegConfig(model_name=model_name)
-        return cfg.setup_target()
+        return GeminiAABBDetSeg(cfg, gemini_client=self.gemini_client)
 
     def load_frame(self, idx: int) -> DatasetOut:
         if idx not in self._frame_cache:
@@ -95,13 +91,13 @@ class ScenePipeline:
 
     def add_to_chat_history(self, user_message: str, assistant_response: str) -> None:
         """Add messages to the persistent chat history."""
-        self.gemini_client.add_user_message(user_message)
-        self.gemini_client.add_assistant_message(assistant_response)
+        self.gemini_client.add_message("user", user_message)
+        self.gemini_client.add_message("assistant", assistant_response)
 
     def set_operational_mode(self, mode: OperationalMode) -> None:
         """Set the current operational mode."""
         self.current_mode = mode
-        self.gemini_client.set_mode(mode)
+        self.gemini_client.current_mode = mode
 
     def get_operational_mode(self) -> OperationalMode:
         """Get the current operational mode."""
@@ -121,10 +117,6 @@ class ScenePipeline:
             text_query = user_input
 
         # Detect and switch mode if auto-detection is enabled
-        if self.gemini_client.config.auto_mode_detection:
-            detected_mode = self.gemini_client.detect_mode(text_query)
-            if detected_mode != self.current_mode:
-                self.set_operational_mode(detected_mode)
 
         # Check if this is a detection request that needs object data
         if self.is_detection_request(text_query):
@@ -136,13 +128,13 @@ class ScenePipeline:
             )
             # Use detection-enhanced response
             enhanced_query = f"{text_query}\n\nDetected objects: {detection_response}"
-            response_text = self.gemini_client.generate_response(
-                enhanced_query, frame.rgb_image
+            response_text, _ = self.gemini_client.generate_response(
+                enhanced_query, frame, tags=["pipeline"]
             )
         else:
             # Regular query processing
-            response_text = self.gemini_client.generate_response(
-                text_query, frame.rgb_image
+            response_text, _ = self.gemini_client.generate_response(
+                text_query, frame, tags=["pipeline"]
             )
 
         # For now, audio output is not implemented

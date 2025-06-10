@@ -1,7 +1,6 @@
 from typing import Annotated, Any, List, Literal, Optional, Tuple, Type
 
 import numpy as np
-from google import genai
 from google.genai import types
 from PIL import Image as PILImage
 from pydantic import Field
@@ -11,8 +10,8 @@ from ..data_contracts.aabb_segmentation import AABBDetections
 from ..data_contracts.dataset import DatasetOut
 from ..data_contracts.obb_detection import OBBDetection, OBBDetections, RawOBBDetection
 from ..utils.base_config import BaseConfig
-from ..utils.configs import PathConfig
 from ..utils.console import Console
+from ..gemini_client import GeminiClient, GeminiClientConfig
 from ..visualization.detection_visualizer import DetectionVisualizer
 
 
@@ -92,11 +91,20 @@ class GeminiOBBDetConfig(BaseConfig["GeminiOBBDet"]):
 class GeminiOBBDet(BaseStep):
     """3D OBB Detection model using Google's Gemini multimodal model."""
 
-    def __init__(self, config: Optional[GeminiOBBDetConfig] = None, **step_kwargs: Any):
+    def __init__(
+        self,
+        config: Optional[GeminiOBBDetConfig] = None,
+        *,
+        gemini_client: Optional[GeminiClient] = None,
+        **step_kwargs: Any,
+    ) -> None:
         CONSOLE = Console.with_prefix(self.__class__.__name__)
         super().__init__(**step_kwargs)
         self.config = config or GeminiOBBDetConfig()
         self.visualizer = DetectionVisualizer()
+        self.gemini_client = gemini_client or GeminiClient(
+            GeminiClientConfig(model_name=self.config.model_name)
+        )
 
         CONSOLE.log(
             f"Initialized Gemini 3D OBB detector with model: {self.config.model_name}"
@@ -157,12 +165,10 @@ class GeminiOBBDet(BaseStep):
             if user_prompt:
                 contents.append(types.Part.from_text(text=user_prompt))
 
-            client = genai.Client(api_key=PathConfig().get_api_key("GOOGLE_API_KEY"))
-
-            response = client.models.generate_content(
-                model=self.config.model_name,
-                contents=contents,
-                config=self.config.get_generation_config(),
+            response = self.gemini_client.generate_content(
+                parts=contents,
+                generation_config=self.config.get_generation_config(),
+                tags=["obb"],
             )
 
             if response.parsed is not None:

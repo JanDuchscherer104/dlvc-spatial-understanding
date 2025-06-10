@@ -1,10 +1,8 @@
 from typing import Annotated, Any, List, Literal, Optional, Tuple, Type, Union
 
 import numpy as np
-from google import genai
 from google.genai import types
 from PIL import Image as PILImage
-from PIL.Image import Image
 from pydantic import Field
 
 from ..data_contracts.aabb_segmentation import (
@@ -13,7 +11,8 @@ from ..data_contracts.aabb_segmentation import (
     RawAABBDetSeg,
 )
 from ..data_contracts.dataset import DatasetOut
-from ..utils import BaseConfig, Console, PathConfig
+from ..utils import BaseConfig, Console
+from ..gemini_client import GeminiClient, GeminiClientConfig
 from ..visualization.detection_visualizer import DetectionVisualizer
 
 
@@ -121,7 +120,11 @@ class GeminiAABBDetSeg:
     """
 
     def __init__(
-        self, config: Optional[GeminiAABBDetSegConfig] = None, **step_kwargs: Any
+        self,
+        config: Optional[GeminiAABBDetSegConfig] = None,
+        *,
+        gemini_client: Optional[GeminiClient] = None,
+        **step_kwargs: Any,
     ):
         """Initialize the Gemini VLM detection model.
 
@@ -132,6 +135,9 @@ class GeminiAABBDetSeg:
         super().__init__(**step_kwargs)
         self.config = config or GeminiAABBDetSegConfig()
         self.visualizer = DetectionVisualizer()
+        self.gemini_client = gemini_client or GeminiClient(
+            GeminiClientConfig(model_name=self.config.model_name)
+        )
 
         CONSOLE.log(f"Initialized Gemini detector with model: {self.config.model_name}")
 
@@ -217,21 +223,22 @@ class GeminiAABBDetSeg:
                 f"Running Gemini detection with model: {self.config.model_name}"
             )
 
-            contents = [
-                rgb_image,
-            ]
+            contents = [rgb_image]
             if user_prompt:
                 contents.append(types.Part.from_text(text=user_prompt))
             else:
                 contents.append(types.Part.from_text(text=self.config.default_prompt))
 
-            # TODO: client should be provided by our GeminiClient class!
-            client = genai.Client(api_key=PathConfig().get_api_key("GOOGLE_API_KEY"))
+            self.gemini_client.add_message(
+                "user",
+                user_prompt or self.config.default_prompt,
+                tags=["aabb"],
+            )
 
-            response = client.models.generate_content(
+            response = self.gemini_client.client.models.generate_content(
                 model=self.config.model_name,
                 contents=contents,
-                config=self.config.get_generation_config(),
+                generation_config=self.config.get_generation_config(),
             )
             parsed_detections: list[RawAABBDetSeg]
             if response.parsed is not None:
@@ -265,6 +272,12 @@ class GeminiAABBDetSeg:
 
             CONSOLE.log(
                 f"{self.config.model_name} detected and parsed {len(parsed_detections)} objects in the scene."
+            )
+
+            self.gemini_client.add_message(
+                "assistant",
+                response.text or "",
+                tags=["aabb"],
             )
 
             return parsed_detections

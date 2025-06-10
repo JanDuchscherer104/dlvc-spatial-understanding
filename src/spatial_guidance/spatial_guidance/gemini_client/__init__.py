@@ -9,6 +9,7 @@ from .gemini_client import (
     ModePromptTemplates,
     OperationalMode,
 )
+from .gemini_live import GeminiLive
 
 __all__ = [
     "GeminiClient",
@@ -16,4 +17,5 @@ __all__ = [
     "OperationalMode",
     "ChatMessage",
     "ModePromptTemplates",
+    "GeminiLive",
 ]

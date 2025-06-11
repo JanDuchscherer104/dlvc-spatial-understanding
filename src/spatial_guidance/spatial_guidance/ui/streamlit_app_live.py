@@ -3,6 +3,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from queue import Empty
 from typing import Any, Dict, List, Optional, Tuple
 
 import nest_asyncio
@@ -29,9 +30,12 @@ from spatial_guidance.data_contracts.aabb_segmentation import AABBDetections
 from spatial_guidance.gemini_client import OperationalMode
 from spatial_guidance.gemini_live_agent import (
     MODEL_OPTIONS,
+    DetectionsEvt,
+    ErrorEvt,
     GeminiLiveAgent,
     GeminiLiveAgentConfig,
     InteractionMode,
+    TextEvt,
 )
 from spatial_guidance.response_generation import DirectionalStyle, DistanceStyle
 from spatial_guidance.utils import Console, PathConfig
@@ -44,26 +48,13 @@ live_agent_container = {"agent": None, "response": None, "detections": None}
 
 
 # Configuration and Setup
-@st.cache_resource(hash_funcs={Path: lambda p: (str(p), p.stat().st_mtime_ns)})
-def get_live_agent(
-    dataset_dir: Path,
-    model_name: str,
-    is_rotated: bool,
-    interaction_mode: InteractionMode,
-) -> GeminiLiveAgent:
-    """Create and cache the live agent."""
-    CONSOLE.log(
-        f"Initializing live agent for {dataset_dir} with {model_name}, is_rotated={is_rotated}, mode={interaction_mode}"
-    )
-    with st.spinner(
-        f"Initializing Live Agent for {dataset_dir.name} with {model_name}..."
-    ):
-        config = GeminiLiveAgentConfig(interaction_mode=interaction_mode)
-        agent = GeminiLiveAgent(
-            config=config, dataset_dir=dataset_dir, is_rotated=is_rotated
-        )
-        # Setup the detector with the selected model
-        agent.setup_aabb_detector(model_name)
+@st.cache_resource(max_entries=1)
+def get_live_agent() -> GeminiLiveAgent:
+    """Create and cache the live agent with default configuration."""
+    CONSOLE.log("Initializing live agent with default configuration")
+    with st.spinner("Initializing Live Agent..."):
+        config = GeminiLiveAgentConfig(interaction_mode=InteractionMode.TEXT)
+        agent = GeminiLiveAgent(config=config)
     return agent
 
 
@@ -86,6 +77,10 @@ def init_session_state():
         st.session_state.current_dataset = None
     if "live_responses" not in st.session_state:
         st.session_state.live_responses = []
+    if "current_model" not in st.session_state:
+        st.session_state.current_model = None
+    if "current_interaction_mode" not in st.session_state:
+        st.session_state.current_interaction_mode = None
 
 
 def check_dataset_change(dataset_dir: Path):
@@ -239,8 +234,26 @@ def create_sidebar() -> Tuple[
         format_func=lambda x: x.value.replace("_", " ").title(),
     )
 
-    # Create live agent
-    live_agent = get_live_agent(dataset_dir, model_name, is_rotated, interaction_mode)
+    # Create live agent (cached - only created once)
+    live_agent = get_live_agent()
+
+    # Update live agent settings only when they actually change
+    CONSOLE.log(f"Updating live agent for dataset: {dataset_dir}")
+    live_agent.update_dataset(dataset_dir, is_rotated)
+
+    # Only update AABB detector if model changed
+    if st.session_state.current_model != model_name:
+        CONSOLE.log(
+            f"Model changed from {st.session_state.current_model} to {model_name}, updating detector"
+        )
+        live_agent.update_aabb_detector(model_name)
+        st.session_state.current_model = model_name
+
+    # Only update interaction mode if it changed
+    if st.session_state.current_interaction_mode != interaction_mode:
+        CONSOLE.log(f"Interaction mode changed to {interaction_mode}")
+        live_agent.update_interaction_mode(interaction_mode)
+        st.session_state.current_interaction_mode = interaction_mode
 
     # Frame selection
     max_idx = len(live_agent.dataset) - 1
@@ -406,8 +419,8 @@ def get_suggested_prompts(mode: OperationalMode) -> List[str]:
     prompts = {
         OperationalMode.GENERAL_SCENE: [
             "What objects do you see?",
-            "Describe the spatial layout",
-            "What's happening in this scene?",
+            "Provide a qualitative scene description without invoking any tools!",
+            "What tools are available?",
         ],
         OperationalMode.OBJECT_DETECTION: [
             "Find all chairs in this scene",
@@ -436,7 +449,7 @@ def get_suggested_prompts(mode: OperationalMode) -> List[str]:
 def handle_chat_interaction(
     live_agent: GeminiLiveAgent, frame_idx: int, user_input: str
 ):
-    """Process user input through Live Agent and generate response."""
+    """Process user input through Live Agent using actor pattern and generate response."""
     # Add user message to history
     st.session_state.chat_history.append(("user", user_input))
 
@@ -446,25 +459,69 @@ def handle_chat_interaction(
     with st.chat_message("assistant"):
         with st.spinner("🤖 Processing with Live Agent..."):
             try:
-                # Use the new Streamlit integration method
-                response_text = live_agent.handle_streamlit_query(user_input, frame_idx)
+                # Send query to the actor-based live agent
+                live_agent.ask(user_input, frame_idx)
+
+                # Collect text chunks until quiescence (no new chunks for 0.5s)
+                text_chunks: List[str] = []
+                detection_result = None
+                idle_start: Optional[float] = None
+
+                try:
+                    while live_agent.next_event() is not None:
+                        pass
+                except Empty:
+                    pass
+
+                while True:
+                    event = live_agent.next_event()
+                    if event is None:
+                        if text_chunks:
+                            # once we have text, start idle timer
+                            if idle_start is None:
+                                idle_start = time.time()
+                            elif time.time() - idle_start > 0.5:
+                                break
+                        else:
+                            # no text yet, poll quickly
+                            time.sleep(0.05)
+                        continue
+
+                    # reset idle timer on new event
+                    idle_start = None
+
+                    if isinstance(event, TextEvt):
+                        text_chunks.append(event.text)
+
+                    elif isinstance(event, DetectionsEvt):
+                        detection_result = event.detections
+                        det_key = f"det_{event.frame_idx}"
+                        st.session_state.detection_results[det_key] = detection_result
+                        if live_agent.detection_callback:
+                            live_agent.detection_callback(
+                                event.frame_idx, detection_result
+                            )
+
+                    elif isinstance(event, ErrorEvt):
+                        st.error(f"Live Agent Error: {event.error}")
+                        text_chunks = [f"Sorry, I encountered an error: {event.error}"]
+                        break
+
+                # DEBUG: log collected chunks
+                try:
+                    CONSOLE.log(f"Collected text chunks: {text_chunks}")
+                except Exception:
+                    pass
+
+                response_text = "".join(text_chunks).strip()
+                if not response_text:
+                    response_text = "I'm processing your request; please wait a moment."
+                st.markdown(response_text)
+
             except Exception as e:
                 CONSOLE.error(f"Error communicating with Live Agent: {e}")
                 st.error(f"Error communicating with Live Agent: {e}")
                 response_text = f"Sorry, I encountered an error: {str(e)}"
-
-            # Check if any detections were cached during the interaction
-            det_key = f"det_{frame_idx}"
-            if det_key in st.session_state.detection_results:
-                detections = st.session_state.detection_results[det_key]
-                if detections.objects:
-                    st.image(
-                        detections.visualization_rgb,
-                        caption="Detection Results",
-                        use_container_width=True,
-                    )
-
-            st.markdown(response_text)
 
         # Add assistant response to history
         st.session_state.chat_history.append(("assistant", response_text))
@@ -578,19 +635,18 @@ def display_quick_actions(live_agent: GeminiLiveAgent, frame_idx: int):
         st.session_state.chat_history = []
         st.session_state.live_session_active = False
         st.session_state.live_responses = []
-        # Also stop the Live API session
-        try:
-            run_async_in_thread(live_agent.stop_live_session())
-        except Exception as e:
-            CONSOLE.error(f"Error stopping Live session: {e}")
+        # Clear detection results
+        st.session_state.detection_results = {}
+        st.session_state.subset_results = {}
         st.sidebar.success("History cleared!")
         st.rerun()
 
 
 def display_session_info(live_agent: GeminiLiveAgent):
-    """Display session statistics."""
+    """Display session statistics and health."""
     st.sidebar.header("📊 Session Info")
 
+    # Chat history stats
     history = st.session_state.chat_history
     user_msgs = len([msg for role, msg in history if role == "user"])
     assistant_msgs = len([msg for role, msg in history if role == "assistant"])
@@ -599,11 +655,34 @@ def display_session_info(live_agent: GeminiLiveAgent):
     col1.metric("User", user_msgs)
     col2.metric("Assistant", assistant_msgs)
 
-    # Show Live API session status based on actual session state
-    if hasattr(live_agent, "session") and live_agent.session is not None:
-        st.sidebar.success("🟢 Live Session Active")
+    # Actor status with health check
+    if hasattr(live_agent, "actor_thread") and live_agent.actor_thread is not None:
+        if live_agent.actor_thread.is_alive():
+            st.sidebar.success("🔄 Actor Thread Running")
+
+            # Check for recent errors
+            error_count = 0
+            temp_events = []
+            while True:
+                event = live_agent.next_event()
+                if event is None:
+                    break
+                temp_events.append(event)
+                if isinstance(event, ErrorEvt):
+                    error_count += 1
+
+            # Put events back (this is a limitation of the current design)
+            for event in temp_events:
+                if isinstance(event, ErrorEvt):
+                    st.sidebar.error(f"⚠️ Recent Error: {event.error}")
+
+        else:
+            st.sidebar.error("❌ Actor Thread Stopped")
+            if st.sidebar.button("🔄 Restart Actor"):
+                live_agent._start_actor()
+                st.rerun()
     else:
-        st.sidebar.info("🔴 Live Session Inactive")
+        st.sidebar.warning("⚠️ No Actor Thread")
 
 
 def run_async_in_thread(coro):
@@ -624,24 +703,20 @@ def run_async_in_thread(coro):
 
 
 def handle_frame_context_change(live_agent: GeminiLiveAgent, frame_idx: int):
-    """Handle frame context changes and automatically send to Live API if session is active."""
+    """Handle frame context changes using the actor pattern."""
     # Track the last frame index in session state
     if "last_frame_idx" not in st.session_state:
-        st.session_state.last_frame_idx = None
+        # Initialize with the current frame to avoid duplicate initial send
+        st.session_state.last_frame_idx = live_agent.current_frame_idx
 
-    # Check if frame has changed
+    # Check if frame has actually changed
     if st.session_state.last_frame_idx != frame_idx:
         st.session_state.last_frame_idx = frame_idx
 
-        # Set the current frame in the live agent (this will automatically send context if session is active)
+        # Set the current frame using the actor pattern (thread-safe)
         try:
-            # Run the async operation in a separate thread to avoid event loop conflicts
-            if hasattr(live_agent, "set_current_frame"):
-                context_sent = run_async_in_thread(
-                    live_agent.set_current_frame(frame_idx)
-                )
-                if context_sent:
-                    CONSOLE.log(f"Sent frame {frame_idx} context to Live API")
+            live_agent.set_current_frame(frame_idx)
+            CONSOLE.log(f"Set frame {frame_idx} context via actor pattern")
         except Exception as e:
             CONSOLE.error(f"Failed to set frame context: {e}")
 
@@ -664,12 +739,6 @@ def main():
         is_rotated,
         interaction_mode,
     ) = create_sidebar()
-
-    # Update live agent settings when sidebar changes
-    if hasattr(live_agent, "setup_aabb_detector"):
-        live_agent.setup_aabb_detector(model_name)
-    if hasattr(live_agent, "setup_interaction_mode"):
-        live_agent.setup_interaction_mode(interaction_mode)
 
     # Set up detection callback to store results in session state
     def store_detection_results(frame_idx: int, detections: AABBDetections):

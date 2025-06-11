@@ -397,18 +397,18 @@ class AABBDetection(DataModel):
                 Console.with_prefix(cls.__name__, "validate_segmentation_mask").warn(
                     f"Added padding to base64 string for item {info.data.get('label', 'unknown')}"
                 )
-            try:
-                png_bytes = base64.b64decode(png_data)
-                mask_img = PILImage.open(io.BytesIO(png_bytes))
-            except Exception as e:
-                CONSOLE = Console.with_prefix(
-                    cls.__name__, "validate_segmentation_mask"
-                )
-                CONSOLE.error(
-                    f"Invalid mask format for item {info.data.get('label', 'unknown')}\n"
-                    f"{e}\n{traceback.format_exc()}"
-                )
-                return PILImage.new("L", (1, 1))
+            # try:
+            png_bytes = base64.b64decode(png_data)
+            mask_img = PILImage.open(io.BytesIO(png_bytes))
+            # except Exception as e:
+            #     CONSOLE = Console.with_prefix(
+            #         cls.__name__, "validate_segmentation_mask"
+            #     )
+            #     CONSOLE.error(
+            #         f"Invalid mask format for item {info.data.get('label', 'unknown')}\n"
+            #         f"{e}\n{traceback.format_exc()}"
+            #     )
+            #     return PILImage.new("L", (1, 1))
 
             return mask_img
 
@@ -611,9 +611,8 @@ class AABBDetections(DataModel):
     def __iter__(self):
         return iter(self.objects)
 
-    def to_json_list(self) -> str:
+    def to_list_dict(self) -> list[dict[str, Any]]:
         """Return AABB detections as a JSON list with label, bbox, and median depth."""
-        import json
 
         detections_list = []
         for obj in self.objects:
@@ -624,9 +623,10 @@ class AABBDetections(DataModel):
                     if hasattr(obj.box_2d, "tolist")
                     else list(obj.box_2d)
                 ),
-                "depth": obj.med_depth,
-                "rotation_clock": obj.rotation_clock,
+                "depth": float(obj.med_depth or float("nan")),
+                "rotation_clock": int(obj.rotation_clock or float("nan")),
+                "rotation_deg": float(obj.rotation_deg or float("nan")),
             }
             detections_list.append(detection_dict)
 
-        return json.dumps(detections_list)
+        return detections_list

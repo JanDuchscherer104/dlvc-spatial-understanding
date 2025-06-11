@@ -113,6 +113,69 @@ class GeminiAABBDetSegConfig(BaseConfig["GeminiAABBDetSeg"]):
             system_instruction=self.base_system_prompt,
         )
 
+    def make_tool(self) -> types.Tool:
+        """Create a Gemini tool for AABB detection."""
+        return types.Tool(
+            function_declarations=[
+                types.FunctionDeclaration(
+                    name="run_aabb_detection",
+                    description="Performs detection and segmentation of relevant objects in the scene, computing their distances, orientations, and spatial relationships. This tool analyzes RGB-D images to identify navigation-relevant objects including moveable hazards, trip hazards, head-level hazards, and navigation landmarks. If the user asks for the distances or locations of specific objects, this tool will be used.",
+                    parameters=types.Schema(
+                        type="object",
+                        properties={
+                            "user_prompt": {
+                                "type": "string",
+                                "description": "Optional user prompt to guide the detection. If provided, the system will focus on specific objects or categories mentioned in the prompt.",
+                            },
+                            "subset_mode": {
+                                "type": "boolean",
+                                "description": "If true, only detect objects specified in the user_prompt. If false, detect all relevant objects in the scene.",
+                                "default": False,
+                            },
+                        },
+                        required=[],
+                    ),
+                    response=types.Schema(
+                        type="object",
+                        properties={
+                            "detections": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {
+                                            "type": "string",
+                                            "description": "Unique descriptive label for the detected object.Refer to this object in a human-readable way, e.g. A 'parking red car' instead of 'red_car_parking",
+                                        },
+                                        "bbox": {
+                                            "type": "array",
+                                            "items": {"type": "number"},
+                                            "minItems": 4,
+                                            "maxItems": 4,
+                                        },
+                                        "depth": {
+                                            "type": "number",
+                                            "description": "Estimated distance to the object in meters.",
+                                        },
+                                        "rotation_clock": {
+                                            "type": "integer",
+                                            "description": "Rotation angle around the camera's optical axis in clock units. 12 o'clock is straight ahead.",
+                                        },
+                                        "rotation_deg": {
+                                            "type": "number",
+                                            "description": "Rotation angle around the camera's optical axis in degrees.",
+                                        },
+                                    },
+                                    "required": ["label", "bbox"],
+                                },
+                            }
+                        },
+                        required=["detections"],
+                    ),
+                )
+            ]
+        )
+
 
 class GeminiAABBDetSeg:
     """Detection model using Google's Gemini multimodal model with structured output parsing.
@@ -120,16 +183,13 @@ class GeminiAABBDetSeg:
     Inherits from PipelineStage with explicitly defined input and output types.
     """
 
-    def __init__(
-        self, config: Optional[GeminiAABBDetSegConfig] = None, **step_kwargs: Any
-    ):
+    def __init__(self, config: Optional[GeminiAABBDetSegConfig] = None):
         """Initialize the Gemini VLM detection model.
 
         Args:
             config: Configuration for the detection model
         """
         CONSOLE = Console.with_prefix(self.__class__.__name__)
-        super().__init__(**step_kwargs)
         self.config = config or GeminiAABBDetSegConfig()
         self.visualizer = DetectionVisualizer()
 

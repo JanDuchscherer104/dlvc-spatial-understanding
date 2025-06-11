@@ -1,8 +1,14 @@
 import asyncio
+import base64
+import io
 import sys
+import threading
 import traceback
+from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
+from queue import Empty  # <-- Added per instruction
+from queue import Queue
 from typing import (
     Annotated,
     Any,
@@ -52,6 +58,72 @@ class InteractionMode(Enum):
     VOICE = auto()
 
 
+# Actor pattern command and event classes
+@dataclass
+class _Cmd:
+    """Base command class for actor communication."""
+
+    pass
+
+
+@dataclass
+class AskCmd(_Cmd):
+    """Command to ask a text question."""
+
+    text: str
+    frame_idx: Optional[int] = None
+
+
+@dataclass
+class AudioCmd(_Cmd):
+    """Command to send audio data."""
+
+    pcm_data: bytes
+
+
+@dataclass
+class SetFrameCmd(_Cmd):
+    """Command to set current frame context."""
+
+    frame_idx: int
+
+
+@dataclass
+class _Evt:
+    """Base event class for actor communication."""
+
+    pass
+
+
+@dataclass
+class TextEvt(_Evt):
+    """Event containing text response."""
+
+    text: str
+
+
+@dataclass
+class AudioEvt(_Evt):
+    """Event containing audio response."""
+
+    audio_data: bytes
+
+
+@dataclass
+class DetectionsEvt(_Evt):
+    """Event containing detection results."""
+
+    detections: Any  # AABBDetections type
+    frame_idx: int
+
+
+@dataclass
+class ErrorEvt(_Evt):
+    """Event containing error information."""
+
+    error: str
+
+
 class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
     target: Type["GeminiLiveAgent"] = Field(default_factory=lambda: GeminiLiveAgent)
 
@@ -60,9 +132,9 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
 
     # Expert Models
     aabb_detseg: GeminiAABBDetSegConfig = GeminiAABBDetSegConfig()
+    num_detseg_attemts: int = 3
 
     # Tools
-    # TODO: Init remaining tools and fiels of each tool!
     tools: Annotated[List[types.Tool], Field(None)]
 
     # Live API model configuration
@@ -70,9 +142,9 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
     live_model: Literal["gemini-2.0-flash-live-001"] = "gemini-2.0-flash-live-001"
     live_model_config: types.LiveConnectConfig = Field(
         default_factory=lambda: types.LiveConnectConfig(
-            response_modalities=[types.Modality.TEXT],
-            system_instruction=None,  # TODO
-            tools=None,  # Will be set in `validate_live_model_config` method
+            response_modalities=[types.Modality.TEXT, types.Modality.IMAGE],
+            system_instruction=None,
+            tools=None,
         )
     )
     http_options: types.HttpOptions = Field(
@@ -89,14 +161,10 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
     @field_validator("tools", mode="before")
     @classmethod
     def make_tools(cls, _, info: ValidationInfo) -> List[types.Tool]:
-        # TODO: Add all tools to the live model configuration
         tools = []
-
         aabb_detseg_config = info.data.get("aabb_detseg")
         assert isinstance(aabb_detseg_config, GeminiAABBDetSegConfig)
-
         tools.append(aabb_detseg_config.make_tool())
-
         return tools
 
     @model_validator(mode="after")
@@ -104,22 +172,12 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
         """Add tools to the live model configuration and set system instruction."""
         self.live_model_config.tools = self.tools
 
-        # # Set response modalities based on interaction mode
-        # if self.interaction_mode == InteractionMode.VOICE:
-        #     self.live_model_config.response_modalities = [
-        #         types.Modality.TEXT,
-        #         types.Modality.AUDIO,
-        #     ]
-        # else:
-        #     self.live_model_config.response_modalities = [types.Modality.TEXT]
-
         self.live_model_config.system_instruction = (
             "You are an agentic AI assistant specializing in spatial understanding and navigation assistance for visually impaired users. "
             "You can analyze RGB-D (color + depth) images to detect and describe objects, provide spatial guidance, "
             "and help with navigation tasks. You have access to advanced computer vision tools that can identify "
-            "objects, measure distances, and determine spatial relationships in the scene."
+            "objects, measure distances, and determine spatial relationships in the scene. "
             "Whenever a precise spatial description (including distances and directions) is required, use the provided tools."
-            "If a "
         )
 
         params_to_log = {
@@ -136,31 +194,14 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
             ],
         }
         console = Console.with_prefix(self.__class__.__name__)
-        console.log(f"Live model configuration: ")
+        console.log(f"Live model configuration:")
         console.plog(params_to_log)
 
         return self
 
 
 class GeminiLiveAgent:
-    # Type hints for all attributes
-    config: GeminiLiveAgentConfig
-    dataset: StrayDataset
-    live_client: genai.Client
-    aabb_detector: GeminiAABBDetSeg
-
-    # Session attributes (always present)
-    session: Optional[AsyncSession]
-    current_frame_idx: Optional[int]
-
-    # Callback for storing detection results (for Streamlit integration)
-    detection_callback: Optional[Callable[[int, AABBDetections], None]]
-
-    # Audio-specific attributes (only for VOICE mode)
-    audio_in_queue: Optional[asyncio.Queue[bytes]]
-    out_queue: Optional[asyncio.Queue[dict[str, Any]]]
-    audio_stream: Optional[pyaudio.Stream]
-    pya: Optional[pyaudio.PyAudio]
+    """Actor-pattern based Gemini Live Agent with single-loop async backend."""
 
     def __init__(
         self,
@@ -171,84 +212,322 @@ class GeminiLiveAgent:
         self.config = config
         self.console = Console.with_prefix(self.__class__.__name__)
 
-        # Event‑loop that owns the Live‑API session
-        self.session_loop: Optional[asyncio.AbstractEventLoop] = None
-
         # Initialize the live client
         self.live_client = genai.Client(
             http_options=self.config.http_options,
             api_key=PathConfig().get_api_key("GOOGLE_API_KEY"),
         )
 
-        # Initialize session (always present)
-        self.session = None
-        self.current_frame_idx = None
-        self.detection_callback = None
-
         # Initialize expert models
         self.aabb_detector = self.config.aabb_detseg.setup_target()
 
-        self.setup_dataset(
-            dataset_dir=dataset_dir,
-            is_rotated=is_rotated,
-        )
-        self.setup_interaction_mode()
+        # Setup dataset
+        self.update_dataset(dataset_dir=dataset_dir, is_rotated=is_rotated)
+        self.update_interaction_mode()
 
-    async def run(self):
-        """Run the Gemini Live Agent in an asynchronous loop.
+        # Actor communication queues
+        self.in_q: Queue[_Cmd] = Queue()
+        self.out_q: Queue[_Evt] = Queue()
 
-        ```python
-        asyncio.run(GeminiLiveAgentConfig.setup_target().run())
-        ```
-        """
-        # Check if we have AUDIO modality for voice interaction
-        if types.Modality.AUDIO in self.config.live_model_config.response_modalities:
-            await self._run_voice_interaction()
-        else:
-            await self._run_text_interaction()
+        # Actor thread and loop
+        self.actor_thread: Optional[threading.Thread] = None
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self.session: Optional[AsyncSession] = None
+        self.current_frame_idx: Optional[int] = None
+        self.detection_callback: Optional[Callable[[int, Any], None]] = None
 
-    async def _run_voice_interaction(self):
-        """Main loop that starts and manages all asynchronous voice tasks."""
+        # Audio setup
+        self.audio_in_queue: Optional[asyncio.Queue[bytes]] = None
+        self.out_queue: Optional[asyncio.Queue[dict[str, Any]]] = None
+        self.audio_stream: Optional[pyaudio.Stream] = None
+        self.pya: Optional[pyaudio.PyAudio] = None
+
+        # Remove initial frame context enqueue; set current_frame_idx if dataset non-empty
+        if len(self.dataset) > 0:
+            self.current_frame_idx = 0
+
+        # Start the actor
+        self._start_actor()
+
+    def _start_actor(self):
+        """Start the background actor thread."""
+        self.actor_thread = threading.Thread(target=self._run_actor, daemon=True)
+        self.actor_thread.start()
+
+    def _run_actor(self):
+        """Actor main loop - runs in background thread with own async loop."""
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
         try:
-            async with self.live_client.aio.live.connect(
-                model=self.config.live_model, config=self.config.live_model_config
-            ) as session:
-                self.session = session
-                self.audio_in_queue = asyncio.Queue()
-                self.out_queue = asyncio.Queue(maxsize=5)
-
-                async with asyncio.TaskGroup() as tg:
-                    send_text_task = tg.create_task(self._send_text())
-                    tg.create_task(self._send_realtime())
-                    tg.create_task(self._listen_audio())
-                    tg.create_task(self._receive_audio())
-                    tg.create_task(self._play_audio())
-
-                    await send_text_task
-                    raise asyncio.CancelledError("User has exited the program.")
-
-        except asyncio.CancelledError:
-            pass
-        except Exception as eg:
-            if self.audio_stream:
-                self.audio_stream.close()
+            self.loop.run_until_complete(self._main_async())
+        except Exception as e:
+            self.console.error(f"Actor loop error: {e}")
             traceback.print_exc()
         finally:
-            if self.pya:
-                self.pya.terminate()
+            self.loop.close()
 
-    async def _send_text(self):
-        """Enables sending text messages to the model."""
+    async def _main_async(self):
+        """Main async method - establishes session and runs consumer/producer."""
+        try:
+            async with self.live_client.aio.live.connect(
+                model=self.config.live_model,
+                config=self.config.live_model_config,
+            ) as session:
+                self.session = session
+                # Send initial frame context once session is live
+                if self.current_frame_idx is not None:
+                    try:
+                        await self._send_frame_context(self.current_frame_idx)
+                    except Exception as e:
+                        self.console.error(f"Failed sending initial frame: {e}")
+                self.console.log("Live API session started")
+
+                # Create task group for consumer and producer
+                async with asyncio.TaskGroup() as tg:
+                    tg.create_task(self._consumer())
+                    tg.create_task(self._producer())
+
+                    # Setup audio tasks if in voice mode
+                    if (
+                        types.Modality.AUDIO
+                        in self.config.live_model_config.response_modalities
+                    ):
+                        self.audio_in_queue = asyncio.Queue()
+                        self.out_queue = asyncio.Queue(maxsize=5)
+                        tg.create_task(self._send_realtime())
+                        tg.create_task(self._listen_audio())
+                        tg.create_task(self._play_audio())
+
+        except Exception as e:
+            self.console.error(f"Main async error: {e}")
+            self.out_q.put(ErrorEvt(error=str(e)))
+
+    async def _consumer(self):
+        """Consumes commands from in_q and executes them."""
         while True:
-            text = await asyncio.to_thread(input, "message > ")
-            if text.lower() == "q":
-                break
-            # print(f"[INFO] Sending text to API: '{text}'")
-            self.console.log(f"Sending text to API: '{text}'")
-            if self.session:
+            try:
+                # Non-blocking check for commands
+                try:
+                    cmd = self.in_q.get_nowait()
+                except Empty:
+                    await asyncio.sleep(0.01)  # Small delay to prevent busy waiting
+                    continue
 
-                await self.session.send(input=text or ".", end_of_turn=True)
+                if isinstance(cmd, AskCmd):
+                    await self._handle_ask_cmd(cmd)
+                elif isinstance(cmd, AudioCmd):
+                    await self._handle_audio_cmd(cmd)
+                elif isinstance(cmd, SetFrameCmd):
+                    await self._handle_set_frame_cmd(cmd)
 
+            except Exception as e:
+                self.console.error(f"Consumer error: {e}")
+                self.out_q.put(ErrorEvt(error=str(e)))
+
+    async def _producer(self):
+        """Produces events from Live API responses and puts them in out_q."""
+        while True:
+            try:
+                if self.session is None:
+                    await asyncio.sleep(0.1)
+                    continue
+
+                async for response in self.session.receive():
+                    # ───── DEBUG LOG ─────
+                    try:
+                        self.console.plog(
+                            {
+                                "text": response.text,
+                                "tool_call?": bool(response.tool_call),
+                                "data?": bool(response.data),
+                                "server_content": (
+                                    response.server_content.to_json_dict()
+                                    if response.server_content
+                                    else None
+                                ),
+                            }
+                        )
+                    except Exception:
+                        pass
+                    # ─────────────────────
+
+                    # Explicitly handle non-text parts to suppress SDK warnings
+                    if response.server_content and response.server_content.model_turn:
+                        for part in response.server_content.model_turn.parts:
+                            # Log generated code
+                            if part.executable_code is not None:
+                                self.console.plog(
+                                    {"code": part.executable_code.code},
+                                )
+                            # Log code execution results
+                            if part.code_execution_result is not None:
+                                self.console.plog(
+                                    {"result": part.code_execution_result.output},
+                                )
+
+                    # Handle tool calls
+                    if response.tool_call:
+                        await self._handle_tool_call(response.tool_call)
+                        continue
+
+                    # Immediate text chunks
+                    if response.text is not None:
+                        self.console.plog(
+                            {
+                                "text": response.text,
+                            }
+                        )
+                        self.out_q.put(TextEvt(text=response.text))
+
+                    # Audio passthrough
+                    if response.data is not None and self.audio_in_queue:
+                        await self.audio_in_queue.put(response.data)
+
+            except Exception as e:
+                self.console.error(f"Producer error: {e}")
+                self.out_q.put(ErrorEvt(error=str(e)))
+                await asyncio.sleep(0.1)
+
+    async def _handle_ask_cmd(self, cmd: AskCmd):
+        """Handle text question command."""
+        if self.session is None:
+            return
+
+        # Set frame if provided
+        if cmd.frame_idx is not None:
+            await self._send_frame_context(cmd.frame_idx)
+
+        # Send text query as completed turn
+        self.console.log(f"Sending user input to Live API: '{cmd.text}'")
+        await self.session.send_client_content(
+            turns=types.Content(role="user", parts=[types.Part(text=cmd.text)]),
+            turn_complete=True,
+        )
+
+    async def _handle_audio_cmd(self, cmd: AudioCmd):
+        """Handle audio data command."""
+        if self.session is None or self.out_queue is None:
+            return
+
+        await self.out_queue.put({"data": cmd.pcm_data, "mime_type": "audio/pcm"})
+
+    async def _handle_set_frame_cmd(self, cmd: SetFrameCmd):
+        """Handle set frame command."""
+        if self.session is not None and cmd.frame_idx != self.current_frame_idx:
+            self.current_frame_idx = cmd.frame_idx
+            await self._send_frame_context(cmd.frame_idx)
+
+    async def _send_frame_context(self, frame_idx: int) -> None:
+        """Send RGB image context to Live API as a completed turn."""
+        if self.session is None:
+            return
+        try:
+            frame = self.dataset[frame_idx]
+            # This is an error in the genai SDK!
+            # buf = io.BytesIO()
+            # frame.rgb_image.save(buf, format="JPEG")
+            # # blob = types.Blob(data=buf.getvalue(), mime_type="image/jpeg")
+            # self.session.send_realtime_input()
+            # await self.session.send_client_content(
+            #     turns=types.Content(
+            #         role="user",
+            #         parts=[
+            #             # self.dataset[frame_idx].rgb_image,
+            #             # types.Part(inline_data=blob),
+            #             types.Part(
+            #                 inline_data=types.Blob(
+            #                     data=base64.b64encode(buf.getvalue()).decode("utf-8"),
+            #                     mime_type="image/jpeg",
+            #                 ),
+            #             ),
+            #             types.Part.from_text(
+            #                 text=(
+            #                     f"I'm now looking at frame {frame_idx} from the dataset. "
+            #                     "I'm seeing what the visually impaired user is seeing."
+            #                 )
+            #             ),
+            #         ],
+            #     ),
+            #     turn_complete=True,
+            # )
+            await self.session.send_realtime_input(
+                media=frame.rgb_image,
+            )
+            await self.session.send_realtime_input(
+                text=f"[SYSTEM] I'm now looking at frame {frame_idx} from the dataset. "
+                "I'm seeing what the visually impaired user is seeing."
+            )
+
+            self.console.log(f"Sent frame {frame_idx} context to Live API")
+        except Exception as e:
+            self.console.error(f"Error sending frame context: {e}")
+            raise e
+
+    async def _handle_tool_call(self, tool_call: types.LiveServerToolCall):
+        """Handle tool calls from the model."""
+        self.console.log(f"[TOOL CALL] Received function call")
+        self.console.plog(tool_call)
+
+        for fc in tool_call.function_calls:
+            if fc.name == "run_aabb_detection":
+                user_prompt = fc.args.get("user_prompt", "")
+                subset_mode = fc.args.get("subset_mode", False)
+
+                # Get current frame data
+                if self.current_frame_idx is None:
+                    response_payload = {
+                        "error": "No current frame set. Please select a frame first."
+                    }
+                else:
+                    frame = self.dataset[self.current_frame_idx]
+                    # Attempt detection up to N times
+                    succ = False
+                    last_exc = None
+                    for _ in range(self.config.num_detseg_attemts):
+                        try:
+                            detections = await asyncio.to_thread(
+                                self.aabb_detector.run_aabb_detection,
+                                frame,
+                                user_prompt,
+                                subset_mode=subset_mode,
+                            )
+                            succ = True
+                            break
+                        except Exception as e:
+                            last_exc = e
+                            self.console.error(f"AABB detection attempt failed: {e}")
+
+                    # Build a single payload
+                    if succ:
+                        # Emit to UI thread
+                        self.out_q.put(
+                            DetectionsEvt(
+                                detections=detections,
+                                frame_idx=self.current_frame_idx,
+                            )
+                        )
+                        response_payload = {"detections": detections.to_list_dict()}
+                        self.console.log(
+                            f"Found {len(detections.objects)} detections for frame {self.current_frame_idx}"
+                        )
+                    else:
+                        response_payload = {
+                            "error": f"run_aabb_detection failed after {self.config.num_detseg_attemts} attempts: {last_exc}"
+                        }
+
+                # Send exactly one FunctionResponse and exit
+                await self.session.send_tool_response(
+                    function_responses=[
+                        types.FunctionResponse(
+                            id=fc.id,
+                            name=fc.name,
+                            response=response_payload,
+                        )
+                    ]
+                )
+                return
+
+    # Audio handling methods (for voice mode)
     async def _send_realtime(self):
         """Sends audio data from the queue to the API."""
         while True:
@@ -256,7 +535,7 @@ class GeminiLiveAgent:
                 break
             msg = await self.out_queue.get()
             if self.session:
-                await self.session.send(input=msg)
+                await self.session.send_realtime_input(**msg)
 
     async def _listen_audio(self):
         """Captures audio from microphone and puts it in the queue."""
@@ -280,27 +559,6 @@ class GeminiLiveAgent:
             )
             await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
 
-    async def _receive_audio(self):
-        """Receives responses (audio, text, function calls) from the API."""
-        while True:
-            if self.session is None:
-                break
-            turn = self.session.receive()
-            async for response in turn:
-                if tool_call := response.tool_call:
-                    await self.handle_tool_call(tool_call)
-                    continue
-                if data := response.data:
-                    if self.audio_in_queue:
-                        self.audio_in_queue.put_nowait(data)
-                    continue
-                if text := response.text:
-                    print(f"\n[MODEL OUTPUT] {text}", end="")
-
-            if self.audio_in_queue:
-                while not self.audio_in_queue.empty():
-                    self.audio_in_queue.get_nowait()
-
     async def _play_audio(self):
         """Plays the received audio."""
         if self.pya is None or self.audio_in_queue is None:
@@ -316,257 +574,68 @@ class GeminiLiveAgent:
         while True:
             bytestream = await self.audio_in_queue.get()
             await asyncio.to_thread(stream.write, bytestream)
+            # Emit audio event for Streamlit
+            self.out_q.put(AudioEvt(audio_data=bytestream))
 
-    async def handle_model_responses_streamlit(self) -> str:
-        """Receives and processes responses (text, function calls) from the API for Streamlit integration."""
-        if self.session is None:
-            return "No active session"
-
-        response_text = ""
-        turn = self.session.receive()
-        async for response in turn:
-            if tool_call := response.tool_call:
-                await self.handle_tool_call(tool_call)
-                continue
-            if text := response.text:
-                response_text += text
-
-        return response_text
-
-    async def start_live_session(self) -> bool:
-        """Start a Live API session for Streamlit integration."""
-        if self.session is not None:
-            return True  # Already active
-
+    # Public API methods (thread-safe, callable from Streamlit)
+    def ask(self, text: str, frame_idx: Optional[int] = None):
+        """Ask a text question (thread-safe)."""
+        # Flush any pending events so new query isn't mixed with old responses
         try:
-            # Use manual context management with proper exit pairing
-            self._session_context = self.live_client.aio.live.connect(
-                model=self.config.live_model,
-                config=self.config.live_model_config,
-            )
-            self.session = await self._session_context.__aenter__()
-            # Remember which loop the session belongs to
-            self.session_loop = asyncio.get_running_loop()
+            while True:
+                self.out_q.get_nowait()
+        except Empty:
+            pass
+        # Enqueue ask command
+        self.in_q.put(AskCmd(text=text, frame_idx=frame_idx))
 
-            self.console.log("Live API session started for Streamlit")
-            return True
-        except Exception as e:
-            self.console.error(f"Failed to start Live API session: {e}")
-            self.session = None
-            return False
+    def push_audio(self, pcm_data: bytes):
+        """Push audio data (thread-safe)."""
+        self.in_q.put(AudioCmd(pcm_data=pcm_data))
 
-    async def stop_live_session(self):
-        """Stop the Live API session."""
-        if self.session and hasattr(self, "_session_context"):
-            try:
-                await self._session_context.__aexit__(None, None, None)
-                self.console.log("Live API session stopped")
-            except Exception as e:
-                self.console.error(f"Error stopping Live API session: {e}")
-            finally:
-                self.session = None
-                self._session_context = None
+    def set_current_frame(self, frame_idx: int):
+        """Set current frame (thread-safe)."""
+        self.in_q.put(SetFrameCmd(frame_idx=frame_idx))
 
-    async def _handle_streamlit_query_async(
-        self, user_input: str, frame_idx: Optional[int] = None
-    ) -> str:
-        """Handle a single query from Streamlit chat interface."""
-        if not user_input.strip():
-            return "Please provide a valid input."
-
-        # Ensure session is active
-        if self.session is None:
-            session_started = await self.start_live_session()
-            if not session_started:
-                return "Failed to establish connection with Live API."
-
-        assert isinstance(self.session, AsyncSession)
+    def next_event(self) -> Optional[_Evt]:
+        """Get next event (thread-safe, non-blocking)."""
         try:
-            # Set frame context if provided
-            # if frame_idx is not None:
-            # await self.set_current_frame(frame_idx)
-            await self.send_frame_context(frame_idx)
+            return self.out_q.get_nowait()
+        except Empty:
+            return None
 
-            # Send user input to Live API
-            self.console.log(
-                f"Sending user input to Live API: {user_input}, type: {type(user_input)}"
-            )
-            await self.session.send_realtime_input(text=user_input)
+    def set_detection_callback(self, callback: Callable[[int, Any], None]):
+        """Set detection result callback."""
+        self.detection_callback = callback
 
-            # Get and return response
-            response_text = await self.handle_model_responses_streamlit()
-
-            return response_text or "No response received from the model."
-
-        except Exception as e:
-            error_msg = f"Error processing query: {str(e)}"
-            self.console.error(error_msg)
-            return error_msg
-
-    def handle_streamlit_query(
-        self, user_input: str, frame_idx: Optional[int] = None
-    ) -> str:
-        """
-        Thread‑safe wrapper that schedules the actual async coroutine on the
-        event‑loop where the Live‑API session was created, avoiding cross‑loop
-        “Future attached to a different loop” errors.
-        """
-        # If no session loop yet (first call) fall back to running the coroutine directly
-        if self.session_loop is None or not self.session_loop.is_running():
-            return asyncio.run(
-                self._handle_streamlit_query_async(user_input, frame_idx)
-            )
-
-        # Always execute the coroutine on the original session loop
-        fut = asyncio.run_coroutine_threadsafe(
-            self._handle_streamlit_query_async(user_input, frame_idx),
-            self.session_loop,
-        )
-        return fut.result()
-
-    def setup_dataset(self, dataset_dir: Optional[Path], is_rotated: Optional[bool]):
+    # Setup methods (keep existing implementation)
+    def update_dataset(self, dataset_dir: Optional[Path], is_rotated: Optional[bool]):
         if isinstance(is_rotated, bool):
             self.config.dataset.is_rotated = is_rotated
 
         if dataset_dir is not None:
-            assert isinstance(dataset_dir, Path), "dataset_dir must be a Path object"
-            assert (
-                dataset_dir.is_dir()
-            ), f"Dataset directory {dataset_dir} does not exist or is not a directory"
             self.config.dataset.data_parser.paths.dataset_dir = dataset_dir
 
         self.dataset = self.config.dataset.setup_target()
 
-    def setup_aabb_detector(self, model_name: str = "gemini-2.5-flash-preview-05-20"):
-        """Create an AABB detector with the specified model name."""
-        self.config.aabb_detseg.model_name = model_name
-        self.aabb_detector = self.config.aabb_detseg.setup_target()
-
-    def setup_interaction_mode(
+    def update_interaction_mode(
         self, interaction_mode: Optional[InteractionMode] = None
     ):
         """Setup the live interaction mode."""
         interaction_mode = interaction_mode or self.config.interaction_mode
 
         if interaction_mode == InteractionMode.VOICE:
-            self.audio_in_queue = None
-            self.out_queue = None
-            self.audio_stream = None
+            import pyaudio
+
             self.pya = pyaudio.PyAudio()
+            # Set audio modality
+            self.config.live_model_config.response_modalities = [types.Modality.AUDIO]
         else:
-            self.audio_in_queue = None
-            self.out_queue = None
-            self.audio_stream = None
             self.pya = None
+            # Set text modality
+            self.config.live_model_config.response_modalities = [types.Modality.TEXT]
 
-    async def set_current_frame(self, frame_idx: int) -> bool:
-        """Set the current frame index and send visual context to Live API if session is active."""
-        # if frame_idx == self.current_frame_idx:
-        #     return False  # No change needed
-
-        self.current_frame_idx = frame_idx
-
-        # If we have an active session, send the frame context automatically
-        if self.session is not None:
-            await self.send_frame_context(frame_idx)
-            return True
-
-        return False
-
-    async def send_frame_context(self, frame_idx: Optional[int] = None) -> None:
-        """Send RGB image and brief context description to Live API."""
-        if self.session is None:
-            Console.with_prefix("GeminiLiveAgent").warn(
-                "No active session to send frame context"
-            )
-            return
-
-        frame_idx = frame_idx or self.current_frame_idx
-        if frame_idx is None:
-            Console.with_prefix("GeminiLiveAgent").warn("No frame index set")
-            return
-
-        try:
-            context_text = (
-                f"I'm now looking at frame {frame_idx} from the dataset. "
-                "I'm seeing what the visually imparied user is seeing. "
-            )
-
-            await self.session.send_realtime_input(
-                media=self.dataset[frame_idx].rgb_image
-            )
-            await self.session.send_realtime_input(text=context_text)
-
-            Console.with_prefix("GeminiLiveAgent").log(
-                f"Sent frame {frame_idx} context to Live API"
-            )
-
-        except Exception as e:
-            Console.with_prefix("GeminiLiveAgent").error(
-                f"Failed to send frame context: {e}"
-            )
-
-    def get_current_frame_data(self):
-        """Get the current frame data for tool calls."""
-        if self.current_frame_idx is None:
-            Console.with_prefix("GeminiLiveAgent").warn("No current frame index set")
-            return None
-        return self.dataset[self.current_frame_idx]
-
-    async def handle_tool_call(self, tool_call: types.LiveServerToolCall):
-        """Processes function calls from the model."""
-        self.console.log(f"[TOOL CALL] Received function call")
-        self.console.plog(tool_call)
-        function_responses = []
-        for fc in tool_call.function_calls:
-            result = None
-
-            # Handle AABB detection tool call
-            if fc.name == "run_aabb_detection":
-                try:
-                    user_prompt = fc.args.get("user_prompt", "")
-                    subset_mode = fc.args.get("subset_mode", False)
-
-                    # Get current frame data
-                    frame = self.get_current_frame_data()
-                    if frame is None:
-                        result = {
-                            "error": "No current frame set. Please select a frame first."
-                        }
-                    else:
-                        # Run AABB detection
-                        detections = await asyncio.to_thread(
-                            self.aabb_detector.run_aabb_detection,
-                            frame,
-                            user_prompt,
-                            subset_mode=subset_mode,
-                        )
-
-                        # Store detection results via callback if available
-                        if (
-                            self.detection_callback
-                            and self.current_frame_idx is not None
-                        ):
-                            self.detection_callback(self.current_frame_idx, detections)
-
-                        # Convert to JSON format
-                        result = detections.to_json_list()
-                        print(
-                            f"[AABB DETECTION] Found {len(detections.objects)} detections for frame {self.current_frame_idx}"
-                        )
-
-                except Exception as e:
-                    print(f"[ERROR] AABB detection failed: {e}")
-                    result = {"error": str(e)}
-
-            if result:
-                function_responses.append(
-                    types.FunctionResponse(
-                        id=fc.id,
-                        name=fc.name,
-                        response={"result": result},
-                    )
-                )
-
-        if function_responses and self.session:
-            await self.session.send_tool_response(function_responses=function_responses)
+    def update_aabb_detector(self, model_name: str = "gemini-2.5-flash-preview-05-20"):
+        """Create an AABB detector with the specified model name."""
+        self.config.aabb_detseg.model_name = model_name
+        self.aabb_detector = self.config.aabb_detseg.setup_target()

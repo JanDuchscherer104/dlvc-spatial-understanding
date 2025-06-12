@@ -1,70 +1,26 @@
-## Week 10: May 26 - May 30, 2025
+## Week 10 May 26 - May 30, 2025
 
-### Understanding Gemini's Segmentation Mask Generation and Base64 Encoding
+### Tasks Worked On
+- Consolidated the code base with a major commit introducing most core modules:
+  - Audio guidance components for speech-to-text processing.
+  - Pydantic data contracts for AABB/OBB detection and segmentation.
+  - Dataset loader and parser for StrayScanner recordings.
+  - Initial scene-understanding pipeline and visualization utilities.
+- Added experimental detection tests and an asynchronous pipeline prototype.
 
-When tasked with generating segmentation masks, particularly as base64 encoded PNG strings, it's helpful to understand how a large language model like me approaches this. This understanding can inform how to best prompt for reliable and accurate results.
+### Problems Encountered
+- Combining many features at once made incremental testing difficult.
+- Parsing orientation angles from Gemini outputs required ad-hoc heuristics.
 
-**1. My "Encoding" Process - Generating, Not Executing Code:**
+### Plans for Next Week
+- Create demonstration notebooks showing Gemini-based detection and segmentation.
+- Begin evaluating approaches for 3‑D spatial understanding.
 
-I don't possess built-in software libraries for image processing, PNG encoding, or base64 conversion in the way a traditional computer program does. When I "generate a base64 encoded PNG string," I am not executing an encoding algorithm.
+### Time Spent
 
-Instead, my process is:
-*   **Visual Understanding:** I first analyze the input image to identify the object(s) you've asked me to segment.
-*   **Pixel-Level Identification (Conceptual):** I conceptually determine which pixels belong to the object. This is guided by my training on countless images with associated segmentation masks.
-*   **Pattern Matching and Generation:** Based on this visual understanding and the specific instructions in your prompt, I generate a sequence of text characters. This sequence is my prediction of what a valid base64 encoded string representing the PNG image of that segmentation mask would look like.
-*   **Learned Representation:** My training data includes a vast number of examples of images, their segmentation masks, and various textual representations of these masks, including base64 strings (often with prefixes like `data:image/png;base64,`). I've learned the statistical patterns, character distributions, and typical lengths associated with these strings.
-
-So, I'm essentially generating text that *conforms to the learned characteristics* of a base64 encoded PNG, rather than actively performing the encoding steps myself.
-
-**2. "Awareness" of Base64 and PNG Structure:**
-
-*   **Base64:** I am "aware" of base64 encoding. I recognize its character set (`A-Z, a-z, 0-9, +, /` and the padding character `=`) and its common use for representing binary data in text formats like JSON.
-*   **PNG Structure (Implicit):** While I don't parse PNG headers or chunks, my training on base64 strings derived from PNGs means I have an implicit understanding of the typical structure and patterns found in such strings. A valid PNG has a specific internal structure, and a base64 string representing it will reflect that.
-*   **Importance of Prompts and Schema:** Your explicit instructions in the system prompt (e.g., "provide ONLY the valid base64 encoded string," "must only contain valid ASCII characters," "prefix with `data:image/png;base64,`") and the JSON schema definition are critical. They guide me to focus my generation on producing output that meets these specific formatting requirements.
-
-**3. Best Practices for Priming Correct Detection and Segmentation Mask Generation:**
-
-To get the most reliable results when asking for segmentation masks:
-
-*   **Clear Role and Explicit Task Definition:**
-    *   Example: "You are an AI assistant for visually impaired users. Your task is to detect relevant obstacles and provide precise segmentation masks for them."
-*   **Detailed Instructions for Mask Generation:**
-    *   Specify the output format: "For the 'mask' field, provide ONLY the valid base64 encoded string of the PNG image."
-    *   Handle Prefixes: Clearly state if the `data:image/png;base64,` prefix is required (as it currently is in `gemini_aabb_detection.py`) or if it should be omitted (for client-side addition). The current prompt for AABB detection correctly includes this prefix instruction.
-    *   Emphasize Validity: Stress the importance of the output being a *valid* base64 string and representing a *valid, non-corrupt* PNG image.
-    *   Conceptual Steps: Guide the process conceptually. For instance: "Generate the segmentation mask by identifying the pixels belonging to the object. This pixel-level mask should then be structured as a PNG image. Finally, provide the base64 string representation of the binary data of that PNG image, prefixed with `data:image/png;base64,`." (This is now reflected in the updated `gemini_aabb_detection.py` prompt).
-*   **Strict Schema Adherence:** Continuously remind the model that its output *must* strictly conform to the provided JSON schema.
-*   **Object Prioritization:** Clearly define which types of objects are of interest for detection and segmentation.
-*   **Concise Schema Field Descriptions:** As noted in the "Gemini Output Instability Report" (week9.qmd), overly verbose or complex descriptions for fields like `mask` within the Pydantic schema itself can sometimes be confusing. A simple, direct description like `"Base64 encoded PNG image string of the object's segmentation mask."` (as in `aabb_segmentation.py`) is preferable.
-*   **Control Model `temperature`:** For tasks requiring precise, structured output, using a lower `temperature` (e.g., 0.0, 0.1, 0.2) in the generation configuration is generally recommended. This reduces randomness and makes the output more deterministic and focused. The current setting of 0.5 in `GeminiAABBDetSegConfig` and `GeminiOBBDetConfig` might allow for too much variability, leading to formatting errors. Consider lowering this.
-*   **Iterative Refinement and Testing:** The key is often iterative refinement. If errors occur (e.g., invalid base64, malformed PNGs), analyze the failures and adjust the prompts to be even more specific or to address the observed failure modes. For example, if non-ASCII characters appear, explicitly forbid them in the prompt.
-
-By providing very clear, explicit, and targeted instructions, you help me navigate the complex task of generating a specific textual representation (base64 PNG string) based on visual input.
-
-
-***
-
-TODO:
-- clock orientations
-- comparison metrics
-- label a few scenes with bounding boxes and segmentation masks.
-- 3d scene description benchmarks / datasets.
-- live api
-   - rgbd and voice input
-- top, topk, tempertaure -> explain in detail and capture experiments?
-- finetuning
-- labeling pipeline - not real time!
-- switch to multi-turn chat (Text Generation)
-- context caching good examples, number of tokens which were cached in usage_metadata. explicit "ttl=360s" to cache for 6 minutes.
--
-
-
-Error: [GeminiLiveAgent]: Error sending frame context: Object of type bytes is not JSON serializable
-  File
-"/Users/jd/Desktop/repos/dlvc-04-spatial-understanding/src/spatial_guidance/spatial_guidance/gemini_live_agent.py", line
-279, in _main_async
-    await self._send_frame_context(self.current_frame_idx)
-  File
-"/Users/jd/Desktop/repos/dlvc-04-spatial-understanding/src/spatial_guidance/spatial_guidance/gemini_live_agent.py", line
-457, in _send_frame_context
-    self.console.error(f"Error sending frame context: {e}")
+| Task | Time Spent |
+|-------------------------------|-----------|
+| Implementing data contracts & pipeline | 5 hours |
+| Adding tests and async prototype | 2 hours |
+| Documentation/notes | 1 hour |
+| **Total** | **8 hours** |

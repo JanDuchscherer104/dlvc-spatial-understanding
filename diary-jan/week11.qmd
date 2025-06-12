@@ -1,0 +1,21 @@
+## Week 11 June 2 - June 6, 2025
+
+### Tasks Worked On
+- Added example notebooks showcasing Gemini AABB segmentation and OBB detection.
+- Explored 3‑D scene understanding with a dedicated notebook.
+
+### Problems Encountered
+- Notebooks are heavy and not yet integrated into the pipeline.
+- Gemini outputs still showed occasional inconsistencies.
+
+### Plans for Next Week
+- Integrate a live API interface for streaming frames and voice prompts.
+- Refine prompts for more stable segmentation results.
+
+### Time Spent
+
+| Task | Time Spent |
+|-----------------------------------------------|-----------|
+| Notebook experimentation | 2 hours |
+| Prompt tuning | 1 hour |
+| **Total** | **3 hours** |

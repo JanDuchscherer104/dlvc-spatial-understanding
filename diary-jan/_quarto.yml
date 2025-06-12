@@ -18,6 +18,8 @@ book:
     - week8.qmd
     - week9.qmd
     - week10.qmd
+    - week11.qmd
+    - week12.qmd
     - week9-app.qmd
 
 format:

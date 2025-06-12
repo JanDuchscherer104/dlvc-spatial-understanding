@@ -4,8 +4,9 @@
 - Consolidated the code base with a major commit introducing most core modules:
   - Audio guidance components for speech-to-text processing.
   - Pydantic data contracts for AABB/OBB detection and segmentation.
-  - Dataset loader and parser for StrayScanner recordings.
-  - Initial scene-understanding pipeline and visualization utilities.
+- Dataset loader and parser for StrayScanner recordings.
+- Initial scene-understanding pipeline and visualization utilities.
+- Cleaned up various leftover scripts and consolidated utilities under `src/`.
 - Added experimental detection tests and an asynchronous pipeline prototype.
 - Implemented helpers for converting rotation angles between radians and degrees to unify OBB outputs.
 

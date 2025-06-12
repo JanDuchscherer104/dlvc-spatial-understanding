@@ -6,6 +6,7 @@
   - **`StrayScannerPaths`**: Centralizes and validates all dataset paths (RGB, depth, odometry, IMU, etc.), ensuring robust file access and fallback mechanisms.
   - **`StrayScannerDataParser`**: Loads and parses all relevant StrayScanner data (RGB frames, depth maps, camera intrinsics, poses, IMU), providing a unified interface for frame-wise access and supporting both original and rotated images. This class is heavily inspired by the StrayVisualizer.
   - **`StrayDataset`**: Wraps the parser and exposes the dataset as a pipeline-ready object, handling scaling, pose normalization, and confidence filtering.
+  - Added a Jupyter notebook that demonstrates parsing a sample StrayScanner recording.
 - **Detection Pipeline Integration**
   - **`GeminiVLMDetection`**: Pipeline stage for running Google Gemini VLM on input frames, using structured prompts and output parsing to extract actionable scene information for navigation.
 - **Development Utilities**

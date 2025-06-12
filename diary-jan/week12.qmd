@@ -4,6 +4,7 @@
 - Implemented prototype live API with audio and image streaming (`gemini_live_agent` and `streamlit_app_live.py`).
 - Added an improved Streamlit chat interface for local testing.
 - Refactored the live agent into modular components with actor protocols and a finite-state machine.
+- Added proper tool-use handling so Gemini can execute snippets for tasks like speech output.
 - Updated data contracts and documentation; added diaries and generated Quarto pages.
 - Moved old experiments to `.deprecated` and cleaned the repository.
 - Added a placeholder `.env` file and removed the outdated `env.yml`; updated Poetry dependencies and TODO sections in the code base.

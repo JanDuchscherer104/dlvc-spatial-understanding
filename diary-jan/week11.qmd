@@ -4,6 +4,7 @@
 - Added example notebooks showcasing Gemini AABB segmentation and OBB detection.
 - Explored 3‑D scene understanding with a dedicated notebook.
 - Introduced `gemini_scene_descriptor` and `gemini_spatial` modules with updated requirements and initial cleanup.
+- Cleaned up obsolete pipeline prototypes and removed outdated tests.
 
 ### Problems Encountered
 - Notebooks are heavy and not yet integrated into the pipeline.

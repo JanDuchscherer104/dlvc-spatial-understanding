@@ -26,8 +26,7 @@ except ImportError:
         "streamlit-webrtc not available. Install it for voice mode: pip install streamlit-webrtc"
     )
 
-from spatial_guidance.data_contracts.aabb_segmentation import AABBDetections
-from spatial_guidance.gemini_client import OperationalMode
+from spatial_guidance.data_contracts import AABBDetections
 from spatial_guidance.live_agent import (
     MODEL_OPTIONS,
     DetectionsEvt,
@@ -37,6 +36,7 @@ from spatial_guidance.live_agent import (
     GeminiLiveAgent,
     GeminiLiveAgentConfig,
     InteractionMode,
+    OperationalMode,
     TextEvt,
 )
 from spatial_guidance.utils import Console, PathConfig

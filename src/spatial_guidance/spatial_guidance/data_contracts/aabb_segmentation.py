@@ -8,10 +8,10 @@ from typing import Annotated, Any, List, Optional, Tuple
 import numpy as np
 from PIL import Image as PILImage
 from PIL.Image import Image
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 
 from ..utils import Console
-from . import DataModel
+from .core import DataModel
 
 
 def pixel_to_camera_coordinates(
@@ -623,6 +623,11 @@ class AABBDetections(DataModel):
                     if hasattr(obj.box_2d, "tolist")
                     else list(obj.box_2d)
                 ),
+                "center_point_3d": (
+                    obj.center_3d_mask
+                    if obj.center_3d_mask is not None
+                    else obj.center_3d_bbox
+                ).tolist(),  # type: ignore
                 "depth": float(obj.med_depth or float("nan")),
                 "rotation_clock": int(obj.rotation_clock or float("nan")),
                 "rotation_deg": float(obj.rotation_deg or float("nan")),

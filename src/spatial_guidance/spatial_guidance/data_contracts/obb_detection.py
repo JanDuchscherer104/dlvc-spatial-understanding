@@ -7,7 +7,7 @@ from PIL import Image
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from ..utils.console import Console
-from . import DataModel
+from .core import DataModel
 
 VERTEX_ORDER = [1, 3, 7, 5, 0, 2, 6, 4]
 

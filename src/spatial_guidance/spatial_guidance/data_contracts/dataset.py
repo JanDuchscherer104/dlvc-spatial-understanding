@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 from PIL.Image import Image
 
-from . import DataModel
+from .core import DataModel
 
 
 class PipelineIn(DataModel):

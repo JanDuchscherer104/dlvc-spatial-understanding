@@ -1,203 +1,38 @@
 import asyncio
-import base64
-import io
-import sys
 import threading
 import traceback
-from dataclasses import dataclass
-from enum import Enum, auto
 from pathlib import Path
-from queue import Empty  # <-- Added per instruction
-from queue import Queue
-from typing import (
-    Annotated,
-    Any,
-    AsyncIterator,
-    Callable,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from queue import Empty, Queue
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
-import numpy as np
 import pyaudio
 from google import genai
 from google.genai import types
 from google.genai.live import AsyncSession
-from PIL import Image as PILImage
-from PIL.Image import Image
-from pydantic import Field, ValidationInfo, field_validator, model_validator
 
-from .data_contracts.aabb_segmentation import (
-    AABBDetection,
-    AABBDetections,
-    RawAABBDetSeg,
+from ..data_contracts.aabb_segmentation import AABBDetections
+from ..utils import Console, PathConfig
+from .actor_protocols import (
+    AskCmd,
+    AudioCmd,
+    AudioEvt,
+    DetectionsEvt,
+    ErrorEvt,
+    SetFrameCmd,
+    TextEvt,
+    _Cmd,
+    _Evt,
 )
-from .data_contracts.dataset import DatasetOut
-from .data_handling.stray_scanner.data_parser import StrayScannerDataParserConfig
-from .data_handling.stray_scanner.stray_dataset import StrayDataset, StrayDatasetConfig
-from .response_generation import DirectionalStyle, DistanceStyle, ResponseGenerator
-from .scene_understanding.gemini_aabb_detection import (
-    GeminiAABBDetSeg,
-    GeminiAABBDetSegConfig,
-)
-from .utils import BaseConfig, Console, PathConfig
-from .visualization.detection_visualizer import DetectionVisualizer
+from .exec_api import _ExecAPI
+from .live_agent_enums import DirectionalStyle, DistanceStyle, GenState, InteractionMode
 
-MODEL_OPTIONS: dict[str, str] = {
-    "gemini-2.5-flash-preview-05-20": "Gemini 2.5 Flash Preview(05-20) - adaptive thinking, cost-efficient",
-    "gemini-2.5-pro-preview-05-06": "Gemini 2.5 Pro Preview (05-06) - enhanced reasoning, multimodal",
-}
+if TYPE_CHECKING:
+    from .live_agent_config import GeminiLiveAgentConfig
 
-
-class InteractionMode(Enum):
-    TEXT = auto()
-    VOICE = auto()
-
-
-# Actor pattern command and event classes
-@dataclass
-class _Cmd:
-    """Base command class for actor communication."""
-
-    pass
-
-
-@dataclass
-class AskCmd(_Cmd):
-    """Command to ask a text question."""
-
-    text: str
-    frame_idx: Optional[int] = None
-
-
-@dataclass
-class AudioCmd(_Cmd):
-    """Command to send audio data."""
-
-    pcm_data: bytes
-
-
-@dataclass
-class SetFrameCmd(_Cmd):
-    """Command to set current frame context."""
-
-    frame_idx: int
-
-
-@dataclass
-class _Evt:
-    """Base event class for actor communication."""
-
-    pass
-
-
-@dataclass
-class TextEvt(_Evt):
-    """Event containing text response."""
-
-    text: str
-
-
-@dataclass
-class AudioEvt(_Evt):
-    """Event containing audio response."""
-
-    audio_data: bytes
-
-
-@dataclass
-class DetectionsEvt(_Evt):
-    """Event containing detection results."""
-
-    detections: Any  # AABBDetections type
-    frame_idx: int
-
-
-@dataclass
-class ErrorEvt(_Evt):
-    """Event containing error information."""
-
-    error: str
-
-
-class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
-    target: Type["GeminiLiveAgent"] = Field(default_factory=lambda: GeminiLiveAgent)
-
-    # Dataset configuration
-    dataset: StrayDatasetConfig = Field(default_factory=StrayDatasetConfig)
-
-    # Expert Models
-    aabb_detseg: GeminiAABBDetSegConfig = GeminiAABBDetSegConfig()
-    num_detseg_attemts: int = 3
-
-    # Tools
-    tools: Annotated[List[types.Tool], Field(None)]
-
-    # Live API model configuration
-    interaction_mode: InteractionMode = InteractionMode.TEXT
-    live_model: Literal["gemini-2.0-flash-live-001"] = "gemini-2.0-flash-live-001"
-    live_model_config: types.LiveConnectConfig = Field(
-        default_factory=lambda: types.LiveConnectConfig(
-            response_modalities=[types.Modality.TEXT, types.Modality.IMAGE],
-            system_instruction=None,
-            tools=None,
-        )
-    )
-    http_options: types.HttpOptions = Field(
-        default_factory=lambda: types.HttpOptions(api_version="v1beta")
-    )
-
-    # Audio configuration
-    format: int = pyaudio.paInt16
-    channels: int = 1
-    send_sample_rate: int = 16000
-    receive_sample_rate: int = 24000
-    chunk_size: int = 1024
-
-    @field_validator("tools", mode="before")
-    @classmethod
-    def make_tools(cls, _, info: ValidationInfo) -> List[types.Tool]:
-        tools = []
-        aabb_detseg_config = info.data.get("aabb_detseg")
-        assert isinstance(aabb_detseg_config, GeminiAABBDetSegConfig)
-        tools.append(aabb_detseg_config.make_tool())
-        return tools
-
-    @model_validator(mode="after")
-    def validate_live_model_config(self) -> "GeminiLiveAgentConfig":
-        """Add tools to the live model configuration and set system instruction."""
-        self.live_model_config.tools = self.tools
-
-        self.live_model_config.system_instruction = (
-            "You are an agentic AI assistant specializing in spatial understanding and navigation assistance for visually impaired users. "
-            "You can analyze RGB-D (color + depth) images to detect and describe objects, provide spatial guidance, "
-            "and help with navigation tasks. You have access to advanced computer vision tools that can identify "
-            "objects, measure distances, and determine spatial relationships in the scene. "
-            "Whenever a precise spatial description (including distances and directions) is required, use the provided tools."
-        )
-
-        params_to_log = {
-            "live_model": self.live_model,
-            "interaction_mode": self.interaction_mode,
-            "response_modalities": self.live_model_config.response_modalities,
-            "tools": [
-                {
-                    tool.function_declarations[0]
-                    .name: tool.function_declarations[0]
-                    .description
-                }
-                for tool in self.tools
-            ],
-        }
-        console = Console.with_prefix(self.__class__.__name__)
-        console.log(f"Live model configuration:")
-        console.plog(params_to_log)
-
-        return self
+# TODO: Both of the styles should be combined into a single style and then injected into the system instructions.
+# TODO: The system instrucitons should be updated to encourage the model to use past detection results whenever possible
+# TODO: The model should rather use the Tool rather than code execution for simpel queries like "How is the scooter positioned relative to me?"
+# TODO: Add example Q&A pairs to the system prompt. Eg. Where is the bicycle? should be treated equivalently to a more specic query whose anser format should depend on the DirectionalStyle and DistanceStyle.
 
 
 class GeminiLiveAgent:
@@ -205,7 +40,7 @@ class GeminiLiveAgent:
 
     def __init__(
         self,
-        config: GeminiLiveAgentConfig,
+        config: "GeminiLiveAgentConfig",
         is_rotated: Optional[bool] = None,
         dataset_dir: Optional[Path] = None,
     ):
@@ -225,6 +60,11 @@ class GeminiLiveAgent:
         self.update_dataset(dataset_dir=dataset_dir, is_rotated=is_rotated)
         self.update_interaction_mode()
 
+        # Initialize response styles and update system instruction
+        self.directional_style = DirectionalStyle.RELATIVE
+        self.distance_style = DistanceStyle.APPROXIMATE
+        self._update_system_instruction()
+
         # Actor communication queues
         self.in_q: Queue[_Cmd] = Queue()
         self.out_q: Queue[_Evt] = Queue()
@@ -242,12 +82,45 @@ class GeminiLiveAgent:
         self.audio_stream: Optional[pyaudio.Stream] = None
         self.pya: Optional[pyaudio.PyAudio] = None
 
+        # Detection cache: maps (frame_idx, subset_mode, user_prompt) to AABBDetections
+        self._detection_cache: dict[tuple[int, bool, str], AABBDetections] = {}
+
+        # New attribute: last detections for code-execution snippets
+        # Now keyed by (frame_idx, label) for cross-turn reusability
+        self._last_detections: dict[tuple[int, str], dict] = {}
+
+        self._exec_api = _ExecAPI(self)
+
+        # Buffer that accumulates streamed text chunks for the current assistant
+        # turn.  Flushed when we receive `generation_complete`/`turn_complete`
+        # from the server, so only the *final* answer is emitted to the UI.
+        self._text_buffer: list[str] = []
+        # State for text collection: only emit final answer after tools
+        self._phase = GenState.COLLECT_FIRST
+
         # Remove initial frame context enqueue; set current_frame_idx if dataset non-empty
-        if len(self.dataset) > 0:
-            self.current_frame_idx = 0
+        self.current_frame_idx = 0
 
         # Start the actor
         self._start_actor()
+
+    def _update_system_instruction(self):
+        """Update the system instruction with current response styles."""
+        # TODO: we need to end the previous session and start a new one, when the system instruction changes.
+        cfg = self.config.live_model_config
+        cfg.system_instruction = self.config.SYSTEM_PROMPT_TEMPLATE.format(
+            DIR_STYLE=self.directional_style.prompt(),
+            DIST_STYLE=self.distance_style.prompt(),
+        )
+
+    def update_response_style(
+        self, dir_style: DirectionalStyle, dist_style: DistanceStyle
+    ):
+        """Update response styles and regenerate system instruction."""
+        if dir_style == self.directional_style and dist_style == self.distance_style:
+            return
+        self.directional_style, self.distance_style = dir_style, dist_style
+        self._update_system_instruction()
 
     def _start_actor(self):
         """Start the background actor thread."""
@@ -334,50 +207,86 @@ class GeminiLiveAgent:
 
                 async for response in self.session.receive():
                     # ───── DEBUG LOG ─────
-                    try:
-                        self.console.plog(
-                            {
-                                "text": response.text,
-                                "tool_call?": bool(response.tool_call),
-                                "data?": bool(response.data),
-                                "server_content": (
-                                    response.server_content.to_json_dict()
-                                    if response.server_content
-                                    else None
-                                ),
-                            }
-                        )
-                    except Exception:
-                        pass
+                    if self.config.is_debug:
+                        try:
+                            self.console.plog(
+                                {
+                                    "text": response.text,
+                                    "tool_call?": bool(response.tool_call),
+                                    "data?": bool(response.data),
+                                    "server_content": (
+                                        response.server_content.to_json_dict()
+                                        if response.server_content
+                                        else None
+                                    ),
+                                }
+                            )
+                        except Exception:
+                            pass
                     # ─────────────────────
-
-                    # Explicitly handle non-text parts to suppress SDK warnings
                     if response.server_content and response.server_content.model_turn:
                         for part in response.server_content.model_turn.parts:
-                            # Log generated code
+                            # Handle generated code execution
                             if part.executable_code is not None:
-                                self.console.plog(
-                                    {"code": part.executable_code.code},
+                                self.console.plog({"code": part.executable_code.code})
+                                # execute the generated Python snippet and capture output
+                                result = await self._exec_api._execute_python(
+                                    part.executable_code.code
                                 )
-                            # Log code execution results
+                                self.console.plog({"code_execution_result": result})
+                                # send the execution result back to the model as text
+                                await self.session.send_client_content(
+                                    turns=types.Content(
+                                        role="assistant",
+                                        parts=[types.Part.from_text(text=result)],
+                                    ),
+                                    turn_complete=False,
+                                )
+                            # Log code execution results (if present from server)
                             if part.code_execution_result is not None:
                                 self.console.plog(
                                     {"result": part.code_execution_result.output},
                                 )
+                                # Do not surface internal execution output to the chat UI
+                                self.console.plog(
+                                    {
+                                        "debug_execution_result": part.code_execution_result.output
+                                    }
+                                )
 
-                    # Handle tool calls
+                    # ── State‐machine buffering ──
                     if response.tool_call:
+                        # drop any pre‐tool chatter and wait for tool
+                        self._phase = GenState.WAIT_TOOL
+                        self._text_buffer.clear()
                         await self._handle_tool_call(response.tool_call)
+                        # now collect only the final answer
+                        self._phase = GenState.COLLECT_FINAL
                         continue
 
-                    # Immediate text chunks
-                    if response.text is not None:
-                        self.console.plog(
-                            {
-                                "text": response.text,
-                            }
-                        )
-                        self.out_q.put(TextEvt(text=response.text))
+                    # buffer text only in the appropriate phase
+                    if response.text is not None and self._phase in (
+                        GenState.COLLECT_FIRST,
+                        GenState.COLLECT_FINAL,
+                    ):
+                        self._text_buffer.append(response.text)
+
+                    # flush buffer on end‐of‐turn
+                    if response.server_content and (
+                        getattr(response.server_content, "generation_complete", False)
+                        or getattr(response.server_content, "turn_complete", False)
+                    ):
+                        if (
+                            self._phase
+                            in (GenState.COLLECT_FIRST, GenState.COLLECT_FINAL)
+                            and self._text_buffer
+                        ):
+                            final_text = "".join(self._text_buffer).strip()
+                            if final_text:
+                                self.out_q.put(TextEvt(text=final_text))
+                        self._text_buffer.clear()
+                        # reset to initial for next user turn
+                        self._phase = GenState.COLLECT_FIRST
 
                     # Audio passthrough
                     if response.data is not None and self.audio_in_queue:
@@ -469,20 +378,59 @@ class GeminiLiveAgent:
         self.console.plog(tool_call)
 
         for fc in tool_call.function_calls:
-            if fc.name == "run_aabb_detection":
-                user_prompt = fc.args.get("user_prompt", "")
-                subset_mode = fc.args.get("subset_mode", False)
+            if fc.name == "get_last_detections":
+                fidx = fc.args["frame_idx"]
+                labels = set(fc.args["labels"])
+                objects = [
+                    det
+                    for (idx, lab), det in self._last_detections.items()
+                    if idx == fidx and lab in labels
+                ]
+                if self.session:
+                    await self.session.send_tool_response(
+                        function_responses=[
+                            types.FunctionResponse(
+                                id=fc.id,
+                                name=fc.name,
+                                response={"objects": objects},
+                            )
+                        ]
+                    )
+                return
 
+            # prepare cache key for detection calls
+            user_prompt = fc.args.get("user_prompt", "")
+            subset_mode = fc.args.get("subset_mode", False)
+
+            if self.current_frame_idx is None:
+                # Handle the case where no frame is set
+                if self.session:
+                    await self.session.send_tool_response(
+                        function_responses=[
+                            types.FunctionResponse(
+                                id=fc.id,
+                                name=fc.name,
+                                response={
+                                    "error": "No current frame set. Please select a frame first."
+                                },
+                            )
+                        ]
+                    )
+                return
+
+            cache_key = (self.current_frame_idx, subset_mode, user_prompt)
+
+            if fc.name == "run_aabb_detection":
                 # Get current frame data
-                if self.current_frame_idx is None:
-                    response_payload = {
-                        "error": "No current frame set. Please select a frame first."
-                    }
+                frame = self.dataset[self.current_frame_idx]
+                # reuse cached detections if identical request
+                if cache_key in self._detection_cache:
+                    detections = self._detection_cache[cache_key]
+                    succ = True
                 else:
-                    frame = self.dataset[self.current_frame_idx]
-                    # Attempt detection up to N times
                     succ = False
                     last_exc = None
+                    # Attempt detection up to N times
                     for _ in range(self.config.num_detseg_attemts):
                         try:
                             detections = await asyncio.to_thread(
@@ -496,35 +444,45 @@ class GeminiLiveAgent:
                         except Exception as e:
                             last_exc = e
                             self.console.error(f"AABB detection attempt failed: {e}")
-
-                    # Build a single payload
                     if succ:
-                        # Emit to UI thread
-                        self.out_q.put(
-                            DetectionsEvt(
-                                detections=detections,
-                                frame_idx=self.current_frame_idx,
-                            )
+                        # cache the results
+                        self._detection_cache[cache_key] = detections
+
+                # Build a single payload
+                if succ:
+                    # remember the latest detections for code-execution snippets
+                    # Emit to UI thread
+                    self.out_q.put(
+                        DetectionsEvt(
+                            detections=detections,
+                            frame_idx=self.current_frame_idx,
                         )
-                        response_payload = {"detections": detections.to_list_dict()}
-                        self.console.log(
-                            f"Found {len(detections.objects)} detections for frame {self.current_frame_idx}"
+                    )
+                    response_payload = {"detections": detections.to_list_dict()}
+                    # Store individual detections by (frame_idx, label) for cache lookup
+                    for obj in detections.objects:
+                        self._last_detections[(self.current_frame_idx, obj.label)] = (
+                            obj.model_dump()
                         )
-                    else:
-                        response_payload = {
-                            "error": f"run_aabb_detection failed after {self.config.num_detseg_attemts} attempts: {last_exc}"
-                        }
+                    self.console.log(
+                        f"Found {len(detections.objects)} detections for frame {self.current_frame_idx}"
+                    )
+                else:
+                    response_payload = {
+                        "error": f"run_aabb_detection failed after {self.config.num_detseg_attemts} attempts: {last_exc}"
+                    }
 
                 # Send exactly one FunctionResponse and exit
-                await self.session.send_tool_response(
-                    function_responses=[
-                        types.FunctionResponse(
-                            id=fc.id,
-                            name=fc.name,
-                            response=response_payload,
-                        )
-                    ]
-                )
+                if self.session:
+                    await self.session.send_tool_response(
+                        function_responses=[
+                            types.FunctionResponse(
+                                id=fc.id,
+                                name=fc.name,
+                                response=response_payload,
+                            )
+                        ]
+                    )
                 return
 
     # Audio handling methods (for voice mode)

@@ -28,16 +28,17 @@ except ImportError:
 
 from spatial_guidance.data_contracts.aabb_segmentation import AABBDetections
 from spatial_guidance.gemini_client import OperationalMode
-from spatial_guidance.gemini_live_agent import (
+from spatial_guidance.live_agent import (
     MODEL_OPTIONS,
     DetectionsEvt,
+    DirectionalStyle,
+    DistanceStyle,
     ErrorEvt,
     GeminiLiveAgent,
     GeminiLiveAgentConfig,
     InteractionMode,
     TextEvt,
 )
-from spatial_guidance.response_generation import DirectionalStyle, DistanceStyle
 from spatial_guidance.utils import Console, PathConfig
 
 CONSOLE = Console.with_prefix("streamlit_app_live")

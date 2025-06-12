@@ -1,57 +1,125 @@
-# Installation & Setup
+# Spatial Guidance Setup Instructions
+
+## Table of Contents
+
+- [System Dependencies](#system-dependencies)
+- [Installation](#installation)
+- [API Configuration](#api-configuration)
+- [Dataset Setup](#dataset-setup)
+
+
+## System Dependencies
+
+### macOS
 
 ```bash
-conda create -n dlvc python=3.11
-conda activate dlvc
+# Install system dependencies
+brew install portaudio
+brew install ffmpeg
+```
 
-# conda install -c conda-forge open3d - currently not needed!
+### Ubuntu/Debian
 
-git clone <repository-url>
+```bash
+sudo apt update
+
+sudo apt install -y \
+    portaudio19-dev \
+    ffmpeg \
+
+sudo apt install -y pulseaudio pulseaudio-utils
+```
+
+
+## Installation
+
+```bash
+git clone https://github.com/your-org/dlvc-04-spatial-understanding.git
 cd dlvc-04-spatial-understanding
 
-pip install -e src/spatial_guidance
+conda create -n dlvc python=3.11
+conda activate dlvc
 ```
 
-## API Keys
-
-[Create a Gemini API key](https://aistudio.google.com/app/apikey) and add it to the `.env` file.
-<!-- [Create an OpenAI API key](https://platform.openai.com/api-keys) and add it to the `.env` file. -->
+### Option A: Poetry Installation (recommended)
 
 ```bash
-GOOGLE_API_KEY=<your-api-key>
-# OPENAI_API_KEY=sk-<...>
+conda install poetry
+cd src/spatial_guidance
+
+poetry install
+
+# Verify installation
+poetry run python -c "import spatial_guidance; print('✅ Installation successful')"
 ```
 
-## Setup Docker and ZenML
+### Option B: Pip Installation
 
-Use the provided Makefile to set up Docker and ZenML. The Makefile contains several targets to help you with the setup process.
+```bash
+pip install -e src/spatial_guidance
 
-1. **`registry-init`**: Launches a local Docker registry container on `localhost:<PORT>` (default 8000), mapping container port 5000 to your specified port.
-Should print `{"repositories":[]}` when no images are present.
-2. **`zenml-init`**: Initializes ZenML, installs the numpy integration, registers the local docker orchestrator, sets up a stack called `local_docker_stack`, registers a container registry at `${REGISTRY_HOST}`, and updates the stack to use it.
+# Verify installation
+python -c "import spatial_guidance; print('✅ Installation successful')"
+```
 
-This should print the stack-describe table looking like this
+## API Configuration
 
-
-| **Component Type** | **Component Name** |
-| ------------------ | ------------------ |
-| ORCHESTRATOR       | local_docker       |
-| CONTAINER_REGISTRY | local-registry     |
-| ARTIFACT_STORE     | default            |
+[Create a Gemini API key](https://aistudio.google.com/app/apikey) and add it to `.env` file in the project root directory.
 
 
-'local_docker_stack' stack (ACTIVE)
-Stack 'local_docker_stack' with id '...' is owned by user default.
+## Dataset Setup
+
+### Default Dataset Structure
+
+The application expects datasets in the following structure:
+
+```
+.data/SmartAIs-Recorded-Data/
+├── scene1/
+│   ├── rgb/
+│   ├── depth/
+│   ├── poses.txt
+│   └── intrinsics.txt
+├── scene2/
+│   ├── rgb/
+│   ├── depth/
+│   ├── poses.txt
+│   └── intrinsics.txt
+└── ...
+```
 
 
-- ~~**`build-base`**: Builds the base image from `Dockerfile.base` with tag `latest` (or specified via `TAG`), namespaced under `${NAMESPACE}` and pushed to the local registry.~~
-~~After building `make registry-check` should yield something like `{"repositories":["spatialunderstanding/base"]}`~
+### Option 1: Default Location
 
-- **`zenml-reinit`**: Completely resets ZenML, then repeats the full stack setup as done in `zenml-init`, ensuring a clean environment with a fresh stack and registry configuration.
+```bash
+# Create the default data directory
+mkdir -p .data/SmartAIs-Recorded-Data
 
-Optional arguments:
+# Copy your datasets to this location
+cp -r /path/to/your/datasets/* .data/SmartAIs-Recorded-Data/
+```
 
-- `PORT=<your-port>`: Specify an unused port for the Docker registry (default is 8000).
-- `NAMESPACE=<your-namespace>`: Specify a custom namespace for the Docker image.
-- `TAG=<your-tag>`: Specify a custom tag for the Docker image.
-- `BASE_DOCKER_FILE=<your-docker-file>`: Specify a custom Dockerfile for the base image.
+### Option 2: Custom Location
+
+Edit `src/spatial_guidance/spatial_guidance/utils/configs.py`:
+
+```python
+# Update the data path in configs.py
+class PathConfig:
+    def __init__(self):
+        self.data = Path("/your/custom/path/to/datasets")
+
+# (Optional) Update the scenario path in stray_scanner_paths.py
+class StrayScannerPaths(BaseConfig):
+    """Configuration for Stray Scanner dataset paths."""
+
+    dataset_dir: Annotated[Path, Field(default="scenario")] # relative to path_config.data
+```
+
+
+### Step 3: Test Streamlit Application
+
+```bash
+# Test Streamlit app startup (without running)
+streamlit run src/spatial_guidance/spatial_guidance/ui/streamlit_app_live.py --help
+```

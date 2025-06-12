@@ -2,10 +2,13 @@
 
 ## Overview
 
+<!-- TODO: revise -->
 This project aims to develop an application that provides 3D spatial scene understanding and interactive audio guidance specifically designed for blind users. By leveraging advanced techniques in depth estimation, object detection, and spatial audio rendering, the application seeks to enhance navigation and interaction in various environments.
 
 - **3D Spatial Scene Understanding**: Utilizes depth estimation and object detection to create a comprehensive understanding of the user's surroundings.
 - **Interactive Audio Guidance**: Generates spatial audio cues and spoken instructions to assist users in navigating their environment effectively.
+<!--/ TODO: revise -->
+
 
 ## Strucuture of the SpatialGuidance Package
 
@@ -57,20 +60,4 @@ spatial_guidance
 
 ## Setup
 
-```bash
-conda create -n dlvc python=3.11
-conda activate dlvc
-
-# from root of the repo
-pip install -e src/spatial_guidance
-```
-
-## Data
-
-The stray scanner datasets should optimally be placed in `.data/SmartAIs-Recorded-Data`. Alternatively, you can modify the paths in `src/utils/configs.py` to point to the correct location of your datasets.
-
-## Run
-
-```bash
-streamlit run src/spatial_guidance/spatial_guidance/ui/streamlit_app_live.py
-```
+For comprehensive setup instructions, please see **[SETUP.md](SETUP.md)**.

@@ -57,3 +57,14 @@ TODO:
 - switch to multi-turn chat (Text Generation)
 - context caching good examples, number of tokens which were cached in usage_metadata. explicit "ttl=360s" to cache for 6 minutes.
 -
+
+
+Error: [GeminiLiveAgent]: Error sending frame context: Object of type bytes is not JSON serializable
+  File
+"/Users/jd/Desktop/repos/dlvc-04-spatial-understanding/src/spatial_guidance/spatial_guidance/gemini_live_agent.py", line
+279, in _main_async
+    await self._send_frame_context(self.current_frame_idx)
+  File
+"/Users/jd/Desktop/repos/dlvc-04-spatial-understanding/src/spatial_guidance/spatial_guidance/gemini_live_agent.py", line
+457, in _send_frame_context
+    self.console.error(f"Error sending frame context: {e}")

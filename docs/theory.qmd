@@ -1,0 +1,56 @@
+---
+title: "Theoretical Background"
+---
+
+The project relies on standard rigid body transforms between camera and
+world frames. A point $p_c$ in camera coordinates is mapped to world
+coordinates by an $\mathrm{SE}(3)$ transform
+
+$$p_w = R p_c + t,$$
+
+where $R \in \mathrm{SO}(3)$ and $t \in \mathbb{R}^3$ describe the
+camera pose. Homogeneous coordinates provide a compact representation:
+
+$$
+\begin{bmatrix}
+p_w \\ 1
+\end{bmatrix}
+=
+\begin{bmatrix}
+R & t \\
+0 & 1
+\end{bmatrix}
+\begin{bmatrix}
+p_c \\ 1
+\end{bmatrix}.
+$$
+
+Pixel coordinates $(u,v)$ with depth $d$ are converted to camera space by
+
+$$
+\begin{bmatrix}x\\y\\z\end{bmatrix} = d
+\begin{bmatrix}
+(u-c_x)/f_x \\
+(v-c_y)/f_y \\
+1
+\end{bmatrix},
+$$
+
+where $(f_x,f_y)$ and $(c_x,c_y)$ are the focal lengths and principal
+point of the camera intrinsics matrix. The functions
+`pixel_to_camera_coordinates` and `camera_to_world_coordinates` in
+`aabb_segmentation.py` implement these equations.
+
+The helper `compute_3d_center_from_bbox` samples depth values within the
+2‑D bounding box, uses the median depth to mitigate outliers and then
+projects the centre pixel into 3‑D. A similar routine
+`compute_3d_center_from_mask` uses the centroid of a segmentation mask.
+
+Given a 3‑D point $(x,z)$ in camera space the bearing in the bird's-eye
+view is computed as
+
+$$\theta = \operatorname{atan2}(x, z).$$
+
+The angle is converted to degrees and mapped to a 12‑hour clock where
+`0°` corresponds to `12 o'clock`. This is implemented in
+`compute_rotation_from_3d_position`.

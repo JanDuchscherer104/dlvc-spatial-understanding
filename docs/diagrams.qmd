@@ -1,0 +1,86 @@
+---
+title: "Diagrams"
+---
+
+The diagrams below use the Mermaid syntax embedded in Quarto. They show simplified relationships among key classes in the project.
+
+## data_contracts
+
+```{mermaid}
+classDiagram
+    class DataModel
+    DataModel <|-- RawAABBDetSeg
+    DataModel <|-- AABBDetection
+    DataModel <|-- AABBDetections
+    DataModel <|-- RawOBBDetection
+    DataModel <|-- OBBDetection
+    DataModel <|-- OBBDetections
+    DataModel <|-- PipelineIn
+    DataModel <|-- DatasetOut
+    AABBDetections "1" o-- "many" AABBDetection : contains
+    OBBDetections "1" o-- "many" OBBDetection : contains
+```
+
+## stray_scanner
+
+```{mermaid}
+classDiagram
+    class StrayScannerPaths
+    class StrayScannerDataParser
+    class StrayDataset
+    StrayDataset --> StrayScannerDataParser : uses
+    StrayDataset --> StrayScannerPaths : reads
+```
+
+## live_agent
+
+```{mermaid}
+classDiagram
+    class GeminiLiveAgent
+    class GeminiLiveAgentConfig
+    class _ExecAPI
+    class AskCmd
+    class AudioCmd
+    class SetFrameCmd
+    class TextEvt
+    class AudioEvt
+    class DetectionsEvt
+    class ErrorEvt
+    GeminiLiveAgent --> _ExecAPI : exposes
+    GeminiLiveAgent --> GeminiLiveAgentConfig : config
+    GeminiLiveAgent ..> AskCmd : receives
+    GeminiLiveAgent ..> AudioCmd
+    GeminiLiveAgent ..> SetFrameCmd
+    GeminiLiveAgent ..> TextEvt : emits
+    GeminiLiveAgent ..> AudioEvt
+    GeminiLiveAgent ..> DetectionsEvt
+    GeminiLiveAgent ..> ErrorEvt
+```
+
+## scene_understanding
+
+```{mermaid}
+classDiagram
+    class GeminiAABBDetSeg
+    class GeminiAABBDetSegConfig
+    class GeminiOBBDet
+    class GeminiOBBDetConfig
+    class GeminiSceneDescriptor
+    class GeminiSceneDescriptorConfig
+    GeminiAABBDetSeg --> GeminiAABBDetSegConfig : config
+    GeminiOBBDet --> GeminiOBBDetConfig
+    GeminiSceneDescriptor --> GeminiSceneDescriptorConfig
+```
+
+## visualization
+
+```{mermaid}
+classDiagram
+    class DetectionVisualizer
+    class SceneVisualizer
+    class SceneVisualizerConfig
+    class VisualizationType
+    SceneVisualizer --> SceneVisualizerConfig
+    SceneVisualizer --> DetectionVisualizer : uses
+```
+

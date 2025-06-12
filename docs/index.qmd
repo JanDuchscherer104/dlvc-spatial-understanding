@@ -1,0 +1,8 @@
+---
+title: "Spatial Guidance Documentation"
+---
+
+Welcome to the documentation for the **spatial_guidance** project.
+This site provides an overview of the package modules, theoretical
+background, automatically generated diagrams and a roadmap for future
+development.

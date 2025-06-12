@@ -2,15 +2,22 @@
 
 ## Overview
 
-<!-- TODO: revise -->
-This project aims to develop an application that provides 3D spatial scene understanding and interactive audio guidance specifically designed for blind users. By leveraging advanced techniques in depth estimation, object detection, and spatial audio rendering, the application seeks to enhance navigation and interaction in various environments.
+SpatialGuidance is a research prototype that combines depth‑based scene analysis
+with Google Gemini models to describe the environment for visually impaired
+users.  The project integrates multiple components for data parsing, object
+segmentation, 3‑D geometry reasoning and natural language generation.  The goal
+is a real‑time system that can detect relevant objects, compute their relative
+positions in world space and provide concise spoken directions.
 
-- **3D Spatial Scene Understanding**: Utilizes depth estimation and object detection to create a comprehensive understanding of the user's surroundings.
-- **Interactive Audio Guidance**: Generates spatial audio cues and spoken instructions to assist users in navigating their environment effectively.
-<!--/ TODO: revise -->
+- **3‑D Spatial Understanding** – uses depth and camera pose information to
+  recover object locations and bearings.
+- **Gemini Driven Detection** – leverages Google Gemini models for accurate
+  segmentation and classification.
+- **Interactive Audio Guidance** – produces short descriptions or voice prompts
+  that are easy to follow while moving.
 
 
-## Strucuture of the SpatialGuidance Package
+## Structure of the SpatialGuidance Package
 
 ```plaintext
 spatial_guidance
@@ -57,6 +64,30 @@ spatial_guidance
     ├── detection_visualizer.py
     └── scene_visualizer.py
 ```
+
+### Symbols by File
+
+- `data_contracts/aabb_segmentation.py`: `RawAABBDetSeg`, `AABBDetection`, `AABBDetections`
+- `data_contracts/core.py`: `DataModel`
+- `data_contracts/dataset.py`: `PipelineIn`, `DatasetOut`
+- `data_contracts/obb_detection.py`: `RawOBBDetection`, `OBBDetection`, `OBBDetections`
+- `data_handling/stray_scanner/data_parser.py`: `StrayScannerDataParserConfig`, `StrayScannerDataParser`
+- `data_handling/stray_scanner/stray_dataset.py`: `StrayDatasetConfig`, `StrayDataset`
+- `data_handling/stray_scanner/stray_scanner_paths.py`: `StrayScannerPaths`
+- `live_agent/actor_protocols.py`: `_Cmd`, `AskCmd`, `AudioCmd`, `SetFrameCmd`, `_Evt`, `TextEvt`, `AudioEvt`, `DetectionsEvt`, `ErrorEvt`
+- `live_agent/exec_api.py`: `_ExecAPI`
+- `live_agent/gemini_live_agent.py`: `GeminiLiveAgent`
+- `live_agent/live_agent_config.py`: `GeminiLiveAgentConfig`
+- `live_agent/live_agent_enums.py`: `DirectionalStyle`, `DistanceStyle`, `GenState`, `InteractionMode`, `OperationalMode`, `ModePromptTemplates`
+- `response_generation/response_generator.py`: `DirectionalStyle`, `DistanceStyle`, `ResponseGenerator`
+- `scene_understanding/gemini_aabb_detection.py`: `GeminiAABBDetSegConfig`, `GeminiAABBDetSeg`
+- `scene_understanding/gemini_obb_detection.py`: `GeminiOBBDetConfig`, `GeminiOBBDet`
+- `scene_understanding/gemini_scene_descriptor.py`: `GeminiSceneDescriptorConfig`, `GeminiSceneDescriptor`
+- `utils/base_config.py`: `BaseConfig`, `NoTarget`, `SingletonConfig`
+- `utils/configs.py`: `PathConfig`
+- `utils/console.py`: `Console`
+- `visualization/detection_visualizer.py`: `DetectionVisualizer`
+- `visualization/scene_visualizer.py`: `VisualizationType`, `SceneVisualizerConfig`, `SceneVisualizer`
 
 ## Setup
 

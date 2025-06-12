@@ -6,6 +6,7 @@
 - Refactored the live agent into modular components with actor protocols and a finite-state machine.
 - Updated data contracts and documentation; added diaries and generated Quarto pages.
 - Moved old experiments to `.deprecated` and cleaned the repository.
+- Added a placeholder `.env` file and removed the outdated `env.yml`; updated Poetry dependencies and TODO sections in the code base.
 - Added example frame data and updated `README.md` and `SETUP.md`.
 - Generated site documentation with Mermaid diagrams instead of PNGs.
 

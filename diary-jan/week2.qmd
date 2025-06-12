@@ -5,6 +5,7 @@
 - Play with Gemini Spatial understanding and get initial idea of its capabilities and limitations.​
 - Get general understanding of the project goals.​
 - Implement basic voice to text via OpenAI Whisper (needed for some other task) ~ [Repo](https://gitlab.lrz.de/dlvc04-sose-25/dlvc-04-spatial-understanding/-/tree/main/src/spatial_guidance/spatial_guidance/audio_guidance?ref_type=heads)
+- Added a quick border-detection approach on depth maps and updated the repository's requirements and `.gitignore` setup.
 - Reflect upon questions for clarification.​
 - Read Paper [SpatialBot: Precise Spatial Understanding with Vision Language Models](https://arxiv.org/abs/2406.13642)
   - Small Model (~3B). So its representational power is most likely rather limited.

@@ -7,6 +7,7 @@
   - Dataset loader and parser for StrayScanner recordings.
   - Initial scene-understanding pipeline and visualization utilities.
 - Added experimental detection tests and an asynchronous pipeline prototype.
+- Implemented helpers for converting rotation angles between radians and degrees to unify OBB outputs.
 
 ### Problems Encountered
 - Combining many features at once made incremental testing difficult.

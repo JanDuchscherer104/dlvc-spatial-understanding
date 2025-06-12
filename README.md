@@ -65,6 +65,10 @@ conda activate dlvc
 pip install -e src/spatial_guidance
 ```
 
+## Data
+
+The stray scanner datasets should optimally be placed in `.data/SmartAIs-Recorded-Data`. Alternatively, you can modify the paths in `src/utils/configs.py` to point to the correct location of your datasets.
+
 ## Run
 
 ```bash

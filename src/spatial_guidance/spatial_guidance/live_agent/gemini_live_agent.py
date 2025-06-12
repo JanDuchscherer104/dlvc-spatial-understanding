@@ -36,6 +36,9 @@ if TYPE_CHECKING:
 # TODO: The agent should always provide a reponse when it receives a new frame where it sees potential hazards. If there are no immediate hazards, it should not say anything
 # TODO: Modify the system prompt such that it includes quantitaive inforamtion (relative distnaces / positions) of obstacles along the path.
 # TODO: Voice2Voice mode (best w/ transcription -> chat)
+# TODO: modify system prompts to be customizable with the enums
+# TODO: provide model with metadata (eg. overview of previous detections, if no available, has to run the tool)
+# TODO: modify system prompts to encourage tool usage over code execution
 
 
 class GeminiLiveAgent:

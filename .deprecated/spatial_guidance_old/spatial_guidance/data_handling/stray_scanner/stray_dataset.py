@@ -1,3 +1,5 @@
+"""Dataset class for StrayScanner data focusing on essential functionality."""
+
 from pathlib import Path
 from typing import List, Optional, Tuple, Type
 
@@ -7,8 +9,9 @@ import numpy as np
 # import open3d as o3d
 from PIL import Image
 from pydantic import Field
+from zenml.steps import BaseStep
 
-from ...data_contracts.dataset import DatasetOut
+from ...data_contracts.dataset import DatasetOut, PipelineIn
 from ...utils.base_config import BaseConfig
 from ...utils.console import Console
 from .data_parser import StrayScannerDataParserConfig
@@ -20,7 +23,7 @@ class StrayDatasetConfig(BaseConfig["StrayDataset"]):
     target: Type["StrayDataset"] = Field(default_factory=lambda: StrayDataset)
     """Target class to instantiate."""
 
-    data_parser: StrayScannerDataParserConfig = Field(
+    data_parser_config: StrayScannerDataParserConfig = Field(
         default_factory=StrayScannerDataParserConfig
     )
     """Configuration for the data parser."""
@@ -47,7 +50,7 @@ class StrayDatasetConfig(BaseConfig["StrayDataset"]):
         return self.target(self)
 
 
-class StrayDataset:
+class StrayDataset(BaseStep):
     """Dataset class for StrayScanner data with minimal but essential functionality."""
 
     def __init__(self, config: Optional[StrayDatasetConfig] = None, **step_kwargs):
@@ -59,12 +62,42 @@ class StrayDataset:
         super().__init__(**step_kwargs)
         self.config = config or StrayDatasetConfig()
 
-        self.parser = self.config.data_parser.setup_target()
+        self.parser = self.config.data_parser_config.setup_target()
 
         # Cache containers
         self._poses_cache: Optional[List[np.ndarray]] = None
         self._rgb_frames: Optional[List[Path]] = None
         self._depth_frames: Optional[List[Path]] = None
+
+    def entrypoint(self, input_data: PipelineIn) -> DatasetOut:
+        rgb_image = Image.fromarray(self.get_rgb(input_data.idx))
+        # Use mode="F" for 32-bit float grayscale to preserve depth information
+        depth_image = Image.fromarray(self.get_depth(input_data.idx), mode="F")
+
+        # Resize depth image to match RGB dimensions if required
+        if self.config.resize_depth_to_rgb:
+            Console.with_prefix(self.__class__.__name__, "entrypoint").log(
+                f"Resizing depth image to match RGB dimensions {depth_image.size} -> {rgb_image.size}"
+            )
+            depth_image = depth_image.resize(rgb_image.size, Image.LANCZOS)
+
+        # Get camera intrinsics - scale if resizing was applied
+        camera_intrinsics = self.parser.get_intrinsics()
+        if self.config.resize_depth_to_rgb and rgb_image.size != depth_image.size:
+            # Scale intrinsics to match the image dimensions
+            width, height = rgb_image.size
+            camera_intrinsics = self.get_scaled_intrinsics(width, height)
+
+        # Get the camera pose for the current frame
+        camera_pose = self.get_poses(idx=input_data.idx)[0]
+
+        return DatasetOut(
+            rgb_image=rgb_image,
+            depth_image=depth_image,
+            user_prompt=input_data.user_prompt,
+            camera_intrinsics=camera_intrinsics.copy(),
+            camera_pose=camera_pose.copy(),
+        )
 
     def __getitem__(self, idx: int) -> DatasetOut:
         rgb_image = Image.fromarray(self.get_rgb(idx))
@@ -293,6 +326,51 @@ class StrayDataset:
             depth_m = cv2.rotate(depth_m, cv2.ROTATE_90_CLOCKWISE)
 
         return depth_m
+
+    # def get_rgbd(self, idx: int) -> o3d.geometry.RGBDImage:
+    #     """Get RGBD image for a specific frame.
+
+    #     Args:
+    #         idx: Frame index.
+
+    #     Returns:
+    #         Open3D RGBD image.
+    #     """
+    #     rgb = self.get_rgb(idx)
+    #     depth = self.get_depth(idx)
+
+    #     # Get depth dimensions
+    #     depth_height, depth_width = depth.shape[:2]
+
+    #     # Resize RGB to match depth dimensions
+    #     rgb_pil = Image.fromarray(rgb)
+    #     rgb_pil = rgb_pil.resize((depth_width, depth_height))
+    #     rgb = np.array(rgb_pil)
+
+    #     return o3d.geometry.RGBDImage.create_from_color_and_depth(
+    #         o3d.geometry.Image(rgb),
+    #         o3d.geometry.Image(depth),
+    #         depth_scale=1.0,
+    #         convert_rgb_to_intensity=False,
+    #     )
+
+    # def get_point_cloud(self, idx: int) -> o3d.geometry.PointCloud:
+    #     """Get colored point cloud for a specific frame.
+
+    #     Args:
+    #         idx: Frame index.
+
+    #     Returns:
+    #         Open3D point cloud with colors.
+    #     """
+    #     rgbd = self.get_rgbd(idx)
+    #     intrinsics = self.get_o3d_intrinsics()
+    #     T_WC = self.parser.get_pose(idx)
+    #     T_CW = np.linalg.inv(T_WC)
+
+    #     return o3d.geometry.PointCloud.create_from_rgbd_image(
+    #         rgbd, intrinsics, extrinsic=T_CW
+    #     )
 
     def __len__(self) -> int:
         """Get number of frames in dataset."""

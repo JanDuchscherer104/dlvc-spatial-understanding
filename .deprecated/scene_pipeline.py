@@ -58,7 +58,7 @@ class ScenePipeline:
     def _create_dataset(self, dataset_dir: Path, is_rotated: bool) -> StrayDataset:
         cfg = StrayDatasetConfig(
             is_rotated=is_rotated,
-            data_parser_config=StrayScannerDataParserConfig(
+            data_parser=StrayScannerDataParserConfig(
                 paths=StrayScannerPaths(dataset_dir=dataset_dir)
             ),
         )

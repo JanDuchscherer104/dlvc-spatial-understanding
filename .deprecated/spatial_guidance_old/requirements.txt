@@ -1,0 +1,31 @@
+# GeminiAI Cookbook
+google-genai>=1.7.0
+google-generativeai>=0.8.4
+Pillow>=11.1.0
+ipython>=9.0.2
+######################
+langchain>=0.3.21
+# data validation and settings management
+pydantic<=2.8.2
+# parsing API keys from .env
+python-dotenv>=1.1.0
+# CONSOLE logging
+rich>=13.9.4
+#####################
+# Speech To Text
+# torch >= 2.6.0
+# git+https://github.com/openai/whisper.git
+devtools>=0.12.2
+#####################
+# OpenAI
+# openai>=1.68.2
+# StrayVis
+# open3d via `conda install -c conda-forge open3d`
+matplotlib
+opencv-python
+# ZenML
+# zenml[server]>=0.81.0
+streamlit>=1.45.1
+streamlit-webrtc>=0.62.4
+websockets>=15.0.1
+sounddevice>=0.5.2

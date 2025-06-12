@@ -151,7 +151,7 @@ class GeminiOBBDet(BaseStep):
             if aabb_detections:
                 contents.append(
                     types.Part.from_text(
-                        text=f"Provide the 3D bounding boxes for the following objects (depths are provided in meters):\n{aabb_detections.to_list_dict()}"
+                        text=f"Provide the 3D bounding boxes for the following objects (depths are provided in meters):\n{aabb_detections.to_json_list()}"
                     )
                 )
             if user_prompt:

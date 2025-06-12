@@ -33,6 +33,9 @@ if TYPE_CHECKING:
 # TODO: The system instrucitons should be updated to encourage the model to use past detection results whenever possible
 # TODO: The model should rather use the Tool rather than code execution for simpel queries like "How is the scooter positioned relative to me?"
 # TODO: Add example Q&A pairs to the system prompt. Eg. Where is the bicycle? should be treated equivalently to a more specic query whose anser format should depend on the DirectionalStyle and DistanceStyle.
+# TODO: The agent should always provide a reponse when it receives a new frame where it sees potential hazards. If there are no immediate hazards, it should not say anything
+# TODO: Modify the system prompt such that it includes quantitaive inforamtion (relative distnaces / positions) of obstacles along the path.
+# TODO: Voice2Voice mode (best w/ transcription -> chat)
 
 
 class GeminiLiveAgent:

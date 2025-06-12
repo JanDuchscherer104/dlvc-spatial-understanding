@@ -88,7 +88,7 @@ class ResponseGenerator:
         """
         try:
             # Use the structured JSON output from detections
-            detections_json = detections.to_json_list()
+            detections_json = detections.to_list_dict()
 
             # Create simple prompt
             prompt = self._create_prompt(detections_json, mode, user_query)

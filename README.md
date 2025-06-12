@@ -7,6 +7,12 @@ This project aims to develop an application that provides 3D spatial scene under
 - **3D Spatial Scene Understanding**: Utilizes depth estimation and object detection to create a comprehensive understanding of the user's surroundings.
 - **Interactive Audio Guidance**: Generates spatial audio cues and spoken instructions to assist users in navigating their environment effectively.
 
+
+
+**EVERYTHING BELOW IS DEPRECATED**
+
+---
+
 See [Setup](SETUP.md) for installation instructions.
 Briefly:
 ```bash

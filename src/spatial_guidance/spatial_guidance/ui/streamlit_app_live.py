@@ -420,7 +420,7 @@ def get_suggested_prompts(mode: OperationalMode) -> List[str]:
     prompts = {
         OperationalMode.GENERAL_SCENE: [
             "What objects do you see?",
-            "Provide a qualitative scene description without invoking any tools!",
+            "Provide a qualitative scene description!",
             "What tools are available?",
         ],
         OperationalMode.OBJECT_DETECTION: [
@@ -467,6 +467,7 @@ def handle_chat_interaction(
                 text_chunks: List[str] = []
                 detection_result = None
                 idle_start: Optional[float] = None
+                response_time_ms: Optional[float] = None
 
                 try:
                     while live_agent.next_event() is not None:
@@ -493,15 +494,17 @@ def handle_chat_interaction(
 
                     if isinstance(event, TextEvt):
                         text_chunks.append(event.text)
+                        # Capture response time from the event
+                        if event.response_time_ms is not None:
+                            response_time_ms = event.response_time_ms
 
                     elif isinstance(event, DetectionsEvt):
                         detection_result = event.detections
                         det_key = f"det_{event.frame_idx}"
                         st.session_state.detection_results[det_key] = detection_result
-                        if live_agent.detection_callback:
-                            live_agent.detection_callback(
-                                event.frame_idx, detection_result
-                            )
+                        # Capture response time from detection event too
+                        if event.response_time_ms is not None:
+                            response_time_ms = event.response_time_ms
 
                     elif isinstance(event, ErrorEvt):
                         st.error(f"Live Agent Error: {event.error}")
@@ -517,7 +520,45 @@ def handle_chat_interaction(
                 response_text = "".join(text_chunks).strip()
                 if not response_text:
                     response_text = "I'm processing your request; please wait a moment."
-                st.markdown(response_text)
+
+                # Display response with timing information
+                if response_time_ms is not None:
+                    # Store response time for statistics
+                    if "response_times" not in st.session_state:
+                        st.session_state.response_times = []
+                    st.session_state.response_times.append(response_time_ms)
+
+                    # Create a container with response text and timing badge
+                    response_container = st.container()
+                    with response_container:
+                        st.markdown(response_text)
+
+                        # Display timing information elegantly
+                        timing_color = (
+                            "#4CAF50"
+                            if response_time_ms < 2000
+                            else "#FF9800" if response_time_ms < 5000 else "#F44336"
+                        )
+                        st.markdown(
+                            f"""
+                            <div style="
+                                display: inline-block;
+                                background-color: {timing_color}20;
+                                color: {timing_color};
+                                padding: 2px 8px;
+                                border-radius: 12px;
+                                font-size: 0.8em;
+                                font-weight: 500;
+                                margin-top: 8px;
+                                border: 1px solid {timing_color}40;
+                            ">
+                                ⏱️ {response_time_ms:.0f}ms
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown(response_text)
 
             except Exception as e:
                 CONSOLE.error(f"Error communicating with Live Agent: {e}")
@@ -552,19 +593,55 @@ def display_chat_interface(
                 handle_chat_interaction(live_agent, frame_idx, prompt)
                 st.rerun()
 
-    # Display chat history
-    for role, message in st.session_state.chat_history:
+    # Display chat history with enhanced styling
+    for i, (role, message) in enumerate(st.session_state.chat_history):
         with st.chat_message(role):
-            st.markdown(message)
+            if role == "assistant":
+                # Check if we have timing information for this response
+                if "response_times" in st.session_state and i // 2 < len(
+                    st.session_state.response_times
+                ):
+                    response_time_ms = st.session_state.response_times[i // 2]
+
+                    # Display message with timing badge
+                    st.markdown(message)
+
+                    # Show timing information for historical messages
+                    timing_color = (
+                        "#4CAF50"
+                        if response_time_ms < 2000
+                        else "#FF9800" if response_time_ms < 5000 else "#F44336"
+                    )
+                    st.markdown(
+                        f"""
+                        <div style="
+                            display: inline-block;
+                            background-color: {timing_color}15;
+                            color: {timing_color};
+                            padding: 1px 6px;
+                            border-radius: 8px;
+                            font-size: 0.7em;
+                            font-weight: 400;
+                            margin-top: 4px;
+                            border: 1px solid {timing_color}30;
+                        ">
+                            ⏱️ {response_time_ms:.0f}ms
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(message)
+            else:
+                st.markdown(message)
 
     # Chat input based on interaction mode
     if interaction_mode == InteractionMode.TEXT:
-        if user_input := st.chat_input("Ask about this scene..."):
-            handle_chat_interaction(live_agent, frame_idx, user_input)
+        if prompt := st.chat_input("Ask about the scene..."):
+            handle_chat_interaction(live_agent, frame_idx, prompt)
             st.rerun()
     else:
-        # Voice mode chat input will be handled by WebRTC component
-        st.info("🎙️ Voice mode: Use the microphone above to interact")
+        display_voice_interface(live_agent, frame_idx)
 
 
 def display_voice_interface(live_agent: GeminiLiveAgent, frame_idx: int):
@@ -656,34 +733,41 @@ def display_session_info(live_agent: GeminiLiveAgent):
     col1.metric("User", user_msgs)
     col2.metric("Assistant", assistant_msgs)
 
+    # Response time statistics
+    if "response_times" not in st.session_state:
+        st.session_state.response_times = []
+
+    if st.session_state.response_times:
+        avg_response_time = sum(st.session_state.response_times) / len(
+            st.session_state.response_times
+        )
+        min_response_time = min(st.session_state.response_times)
+        max_response_time = max(st.session_state.response_times)
+
+        st.sidebar.subheader("⏱️ Response Times")
+
+        # Display metrics in a nice layout
+        time_col1, time_col2 = st.sidebar.columns(2)
+        time_col1.metric("Avg", f"{avg_response_time:.0f}ms")
+        time_col2.metric("Count", len(st.session_state.response_times))
+
+        time_col3, time_col4 = st.sidebar.columns(2)
+        time_col3.metric("Min", f"{min_response_time:.0f}ms")
+        time_col4.metric("Max", f"{max_response_time:.0f}ms")
+
+        # Show a simple chart of recent response times
+        if len(st.session_state.response_times) > 1:
+            recent_times = st.session_state.response_times[-10:]  # Last 10 responses
+            st.sidebar.line_chart(recent_times)
+
     # Actor status with health check
     if hasattr(live_agent, "actor_thread") and live_agent.actor_thread is not None:
         if live_agent.actor_thread.is_alive():
-            st.sidebar.success("🔄 Actor Thread Running")
-
-            # Check for recent errors
-            error_count = 0
-            temp_events = []
-            while True:
-                event = live_agent.next_event()
-                if event is None:
-                    break
-                temp_events.append(event)
-                if isinstance(event, ErrorEvt):
-                    error_count += 1
-
-            # Put events back (this is a limitation of the current design)
-            for event in temp_events:
-                if isinstance(event, ErrorEvt):
-                    st.sidebar.error(f"⚠️ Recent Error: {event.error}")
-
+            st.sidebar.success("🟢 Actor: Running")
         else:
-            st.sidebar.error("❌ Actor Thread Stopped")
-            if st.sidebar.button("🔄 Restart Actor"):
-                live_agent._start_actor()
-                st.rerun()
+            st.sidebar.error("🔴 Actor: Stopped")
     else:
-        st.sidebar.warning("⚠️ No Actor Thread")
+        st.sidebar.warning("🟡 Actor: Not started")
 
 
 def run_async_in_thread(coro):

@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import time
 import traceback
 from pathlib import Path
 from queue import Empty, Queue
@@ -24,7 +25,13 @@ from .actor_protocols import (
     _Evt,
 )
 from .exec_api import _ExecAPI
-from .live_agent_enums import DirectionalStyle, DistanceStyle, GenState, InteractionMode
+from .live_agent_enums import (
+    DirectionalStyle,
+    DistanceStyle,
+    GenState,
+    InteractionMode,
+    ResponseStyle,
+)
 
 if TYPE_CHECKING:
     from .live_agent_config import GeminiLiveAgentConfig
@@ -66,11 +73,6 @@ class GeminiLiveAgent:
         self.update_dataset(dataset_dir=dataset_dir, is_rotated=is_rotated)
         self.update_interaction_mode()
 
-        # Initialize response styles and update system instruction
-        self.directional_style = DirectionalStyle.RELATIVE
-        self.distance_style = DistanceStyle.APPROXIMATE
-        self._update_system_instruction()
-
         # Actor communication queues
         self.in_q: Queue[_Cmd] = Queue()
         self.out_q: Queue[_Evt] = Queue()
@@ -80,7 +82,6 @@ class GeminiLiveAgent:
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.session: Optional[AsyncSession] = None
         self.current_frame_idx: Optional[int] = None
-        self.detection_callback: Optional[Callable[[int, Any], None]] = None
 
         # Audio setup
         self.audio_in_queue: Optional[asyncio.Queue[bytes]] = None
@@ -91,9 +92,8 @@ class GeminiLiveAgent:
         # Detection cache: maps (frame_idx, subset_mode, user_prompt) to AABBDetections
         self._detection_cache: dict[tuple[int, bool, str], AABBDetections] = {}
 
-        # New attribute: last detections for code-execution snippets
-        # Now keyed by (frame_idx, label) for cross-turn reusability
-        self._last_detections: dict[tuple[int, str], dict] = {}
+        # Now keyed by (frame_idx: dict[label: detections_json])
+        self._last_detections: dict[int, dict[str, dict]] = {}
 
         self._exec_api = _ExecAPI(self)
 
@@ -104,29 +104,31 @@ class GeminiLiveAgent:
         # State for text collection: only emit final answer after tools
         self._phase = GenState.COLLECT_FIRST
 
+        # Track pending queries for response time calculation
+        self._pending_queries: dict[str, float] = {}
+
         # Remove initial frame context enqueue; set current_frame_idx if dataset non-empty
         self.current_frame_idx = 0
 
         # Start the actor
         self._start_actor()
 
-    def _update_system_instruction(self):
-        """Update the system instruction with current response styles."""
-        # TODO: we need to end the previous session and start a new one, when the system instruction changes.
-        cfg = self.config.live_model_config
-        cfg.system_instruction = self.config.SYSTEM_PROMPT_TEMPLATE.format(
-            DIR_STYLE=self.directional_style.prompt(),
-            DIST_STYLE=self.distance_style.prompt(),
-        )
-
     def update_response_style(
         self, dir_style: DirectionalStyle, dist_style: DistanceStyle
     ):
-        """Update response styles and regenerate system instruction."""
-        if dir_style == self.directional_style and dist_style == self.distance_style:
+        """Update combined response style, regenerate system instruction, and restart session."""
+        new_style = ResponseStyle(dir_style, dist_style)
+        if new_style == self.config.response_style:
             return
-        self.directional_style, self.distance_style = dir_style, dist_style
-        self._update_system_instruction()
+        self.config.live_model_config.system_instruction = (
+            self.config.system_instruction_template.make_prompt(
+                response_style=new_style
+            )
+        )
+        self.console.log(
+            f"Updated system instruction with new response style: {new_style}."
+        )
+        self._restart_live_session()
 
     def _start_actor(self):
         """Start the background actor thread."""
@@ -144,6 +146,25 @@ class GeminiLiveAgent:
             traceback.print_exc()
         finally:
             self.loop.close()
+
+    def _restart_live_session(self):
+        """Restart the Live API session to apply updated system instruction."""
+        self.console.log("Restarting Live API session with updated 'live_model_config'")
+        # Close existing session if active
+        if self.session is not None:
+            try:
+                self.session.close()
+            except Exception as e:
+                self.console.error(f"Error closing session: {e}")
+            self.session = None
+        # Stop current event loop to exit actor
+        if self.loop is not None and self.loop.is_running():
+            try:
+                self.loop.call_soon_threadsafe(self.loop.stop)
+            except Exception as e:
+                self.console.error(f"Error stopping event loop: {e}")
+        # Start a new actor thread to reconnect
+        self._start_actor()
 
     async def _main_async(self):
         """Main async method - establishes session and runs consumer/producer."""
@@ -192,7 +213,9 @@ class GeminiLiveAgent:
                     await asyncio.sleep(0.01)  # Small delay to prevent busy waiting
                     continue
 
+                # Track query timing for AskCmd
                 if isinstance(cmd, AskCmd):
+                    self._pending_queries[cmd.query_id] = cmd.timestamp
                     await self._handle_ask_cmd(cmd)
                 elif isinstance(cmd, AudioCmd):
                     await self._handle_audio_cmd(cmd)
@@ -232,23 +255,9 @@ class GeminiLiveAgent:
                     # ─────────────────────
                     if response.server_content and response.server_content.model_turn:
                         for part in response.server_content.model_turn.parts:
-                            # Handle generated code execution
-                            if part.executable_code is not None:
-                                self.console.plog({"code": part.executable_code.code})
-                                # execute the generated Python snippet and capture output
-                                result = await self._exec_api._execute_python(
-                                    part.executable_code.code
-                                )
-                                self.console.plog({"code_execution_result": result})
-                                # send the execution result back to the model as text
-                                await self.session.send_client_content(
-                                    turns=types.Content(
-                                        role="assistant",
-                                        parts=[types.Part.from_text(text=result)],
-                                    ),
-                                    turn_complete=False,
-                                )
-                            # Log code execution results (if present from server)
+                            # Code execution is disabled in config, so no executable_code handling needed
+
+                            # Log code execution results (if present from server - should not happen with disabled code execution)
                             if part.code_execution_result is not None:
                                 self.console.plog(
                                     {"result": part.code_execution_result.output},
@@ -289,7 +298,25 @@ class GeminiLiveAgent:
                         ):
                             final_text = "".join(self._text_buffer).strip()
                             if final_text:
-                                self.out_q.put(TextEvt(text=final_text))
+                                # Calculate response time for the most recent query
+                                query_id = None
+                                response_time_ms = None
+                                if self._pending_queries:
+                                    # Get the most recent query (latest timestamp)
+                                    query_id = max(
+                                        self._pending_queries.keys(),
+                                        key=lambda k: self._pending_queries[k],
+                                    )
+                                    start_time = self._pending_queries.pop(query_id)
+                                    response_time_ms = (time.time() - start_time) * 1000
+
+                                self.out_q.put(
+                                    TextEvt(
+                                        text=final_text,
+                                        query_id=query_id,
+                                        response_time_ms=response_time_ms,
+                                    )
+                                )
                         self._text_buffer.clear()
                         # reset to initial for next user turn
                         self._phase = GenState.COLLECT_FIRST
@@ -372,62 +399,79 @@ class GeminiLiveAgent:
                 text=f"[SYSTEM] I'm now looking at frame {frame_idx} from the dataset. "
                 "I'm seeing what the visually impaired user is seeing."
             )
+            # TODO: The model should reply with a response if and only if it sees any potential hazards in the frame and warn the user about them!
 
             self.console.log(f"Sent frame {frame_idx} context to Live API")
         except Exception as e:
             self.console.error(f"Error sending frame context: {e}")
             raise e
 
-    async def _handle_tool_call(self, tool_call: types.LiveServerToolCall):
+    async def _handle_tool_call(
+        self, tool_call: types.LiveServerToolCall, return_no_send: bool = False
+    ) -> Optional[types.FunctionResponse]:
         """Handle tool calls from the model."""
         self.console.log(f"[TOOL CALL] Received function call")
         self.console.plog(tool_call)
 
+        fc_responses: list[types.FunctionResponse] = []
         for fc in tool_call.function_calls:
-            if fc.name == "get_last_detections":
-                fidx = fc.args["frame_idx"]
+            # Handle overview of all cached detections
+            if fc.name == "list_all_detections":
+                # Build overview: frame_idx -> list of labels
+                overview = {
+                    frame_idx: list(label_dict.keys())
+                    for frame_idx, label_dict in self._last_detections.items()
+                }
+                if self.config.is_debug:
+                    self.console.plog(
+                        {
+                            "list_all_detections": overview,
+                            "num_frames": len(overview),
+                            "num_labels": sum(
+                                len(labels) for labels in overview.values()
+                            ),
+                        }
+                    )
+                fc_responses.append(
+                    types.FunctionResponse(
+                        id=fc.id,
+                        name=fc.name,
+                        response={"overview": overview},
+                    )
+                )
+            elif fc.name == "get_last_detections":
+                frame_index = fc.args["frame_idx"]
                 labels = set(fc.args["labels"])
-                objects = [
-                    det
-                    for (idx, lab), det in self._last_detections.items()
-                    if idx == fidx and lab in labels
+                frame_cache = self._last_detections.get(frame_index, {})
+                detections = [
+                    frame_cache[label] for label in labels if label in frame_cache
                 ]
-                if self.session:
-                    await self.session.send_tool_response(
-                        function_responses=[
-                            types.FunctionResponse(
-                                id=fc.id,
-                                name=fc.name,
-                                response={"objects": objects},
-                            )
-                        ]
+                fc_responses.append(
+                    types.FunctionResponse(
+                        id=fc.id,
+                        name=fc.name,
+                        response={"detections": detections},
                     )
-                return
+                )
 
-            # prepare cache key for detection calls
-            user_prompt = fc.args.get("user_prompt", "")
-            subset_mode = fc.args.get("subset_mode", False)
-
-            if self.current_frame_idx is None:
-                # Handle the case where no frame is set
-                if self.session:
-                    await self.session.send_tool_response(
-                        function_responses=[
-                            types.FunctionResponse(
-                                id=fc.id,
-                                name=fc.name,
-                                response={
-                                    "error": "No current frame set. Please select a frame first."
-                                },
-                            )
-                        ]
+            elif fc.name == "run_aabb_detection":
+                # Check if frame is set
+                if self.current_frame_idx is None:
+                    fc_responses.append(
+                        types.FunctionResponse(
+                            id=fc.id,
+                            name=fc.name,
+                            response={
+                                "error": "No current frame set. Please select a frame first."
+                            },
+                        )
                     )
-                return
+                    continue
 
-            cache_key = (self.current_frame_idx, subset_mode, user_prompt)
-
-            if fc.name == "run_aabb_detection":
                 # Get current frame data
+                user_prompt = fc.args.get("user_prompt", "")
+                subset_mode = fc.args.get("subset_mode", False)
+                cache_key = (self.current_frame_idx, subset_mode, user_prompt)
                 frame = self.dataset[self.current_frame_idx]
                 # reuse cached detections if identical request
                 if cache_key in self._detection_cache:
@@ -457,39 +501,49 @@ class GeminiLiveAgent:
                 # Build a single payload
                 if succ:
                     # remember the latest detections for code-execution snippets
-                    # Emit to UI thread
-                    self.out_q.put(
-                        DetectionsEvt(
-                            detections=detections,
-                            frame_idx=self.current_frame_idx,
-                        )
-                    )
+                    # Ensure detections is AABBDetections type
+                    assert isinstance(
+                        detections, AABBDetections
+                    ), f"Expected AABBDetections, got {type(detections)}"
                     response_payload = {"detections": detections.to_list_dict()}
-                    # Store individual detections by (frame_idx, label) for cache lookup
-                    for obj in detections.objects:
-                        self._last_detections[(self.current_frame_idx, obj.label)] = (
-                            obj.model_dump()
+                    # initialize per-frame cache
+                    if self.current_frame_idx is not None:
+                        self._last_detections[self.current_frame_idx] = {}
+                        for det in response_payload["detections"]:
+                            # det is already JSON-serializable dict
+                            self._last_detections[self.current_frame_idx][
+                                det["label"]
+                            ] = det
+
+                    # Only emit to UI thread if this is a real tool call (not from code execution)
+                    if not return_no_send and self.current_frame_idx is not None:
+                        self.out_q.put(
+                            DetectionsEvt(
+                                detections=detections,
+                                frame_idx=self.current_frame_idx,
+                            )
                         )
-                    self.console.log(
-                        f"Found {len(detections.objects)} detections for frame {self.current_frame_idx}"
-                    )
                 else:
                     response_payload = {
                         "error": f"run_aabb_detection failed after {self.config.num_detseg_attemts} attempts: {last_exc}"
                     }
 
                 # Send exactly one FunctionResponse and exit
-                if self.session:
-                    await self.session.send_tool_response(
-                        function_responses=[
-                            types.FunctionResponse(
-                                id=fc.id,
-                                name=fc.name,
-                                response=response_payload,
-                            )
-                        ]
+                fc_responses.append(
+                    types.FunctionResponse(
+                        id=fc.id,
+                        name=fc.name,
+                        response=response_payload,
                     )
-                return
+                )
+
+        if return_no_send:
+            return fc_responses[0]
+        else:
+            # Send the function response back to the model
+            if self.session:
+                await self.session.send_tool_response(function_responses=fc_responses)
+            return None
 
     # Audio handling methods (for voice mode)
     async def _send_realtime(self):

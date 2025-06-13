@@ -635,3 +635,50 @@ class AABBDetections(DataModel):
             detections_list.append(detection_dict)
 
         return detections_list
+
+    def merge_with(self, other: "AABBDetections") -> "AABBDetections":
+        """
+        Merge this AABBDetections with another, combining all objects.
+
+        Args:
+            other: Another AABBDetections object to merge with
+
+        Returns:
+            New AABBDetections object containing objects from both
+        """
+        # Combine all objects from both detections
+        merged_objects = list(self.objects) + list(other.objects)
+
+        # Create new merged AABBDetections
+        merged = AABBDetections(
+            objects=merged_objects,
+            # Keep the first visualization if available, otherwise use the second
+            visualization_rgb=self.visualization_rgb or other.visualization_rgb,
+            visualization_depth=self.visualization_depth or other.visualization_depth,
+        )
+
+        return merged
+
+    @classmethod
+    def merge_multiple(cls, detections_list: List["AABBDetections"]) -> "AABBDetections":
+        """
+        Merge multiple AABBDetections objects into one.
+
+        Args:
+            detections_list: List of AABBDetections objects to merge
+
+        Returns:
+            New AABBDetections object containing objects from all inputs
+        """
+        if not detections_list:
+            return cls(objects=[])
+
+        if len(detections_list) == 1:
+            return detections_list[0]
+
+        # Start with the first detection and merge all others
+        result = detections_list[0]
+        for detection in detections_list[1:]:
+            result = result.merge_with(detection)
+
+        return result

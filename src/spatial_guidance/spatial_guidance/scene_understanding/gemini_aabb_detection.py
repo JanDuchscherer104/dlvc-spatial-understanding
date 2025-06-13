@@ -110,6 +110,7 @@ class GeminiAABBDetSegConfig(BaseConfig["GeminiAABBDetSeg"]):
             response_schema=RawAABBDetSeg.get_json_schema(
                 as_list=True, max_length=self.max_objects
             ),
+            max_output_tokens=4096,
             response_mime_type="application/json",
             system_instruction=self.base_system_prompt,
         )
@@ -126,7 +127,7 @@ class GeminiAABBDetSegConfig(BaseConfig["GeminiAABBDetSeg"]):
                         properties={
                             "user_prompt": {
                                 "type": "string",
-                                "description": 'Optional user prompt to guide the detection. If provided, the system will focus on specific objects or categories mentioned in the prompt. Provide a clear and concise description of the objects that you want to detect if subset_mode is true. Use unique, concise, and descriptive labels without any room for ambiguity. Examples: "scooter_innactive_lying, construction_barrier_right\n"',
+                                "description": "Optional user prompt to guide the detection. If provided, the system will focus on specific objects or categories mentioned in the prompt. Provide a clear and concise description of the objects that you want to detect if subset_mode is true. Use unique, concise, and descriptive labels without any room for ambiguity.",
                             },
                             "subset_mode": {
                                 "type": "boolean",
@@ -146,7 +147,7 @@ class GeminiAABBDetSegConfig(BaseConfig["GeminiAABBDetSeg"]):
                                     "properties": {
                                         "label": {
                                             "type": "string",
-                                            "description": "Unique descriptive label for the detected object.Refer to this object in a human-readable way, e.g. A 'parking red car' instead of 'red_car_parking",
+                                            "description": "Unique descriptive label for the detected object. Refer to this object in a human-readable way, e.g. A 'parking red car' instead of 'red_car_parking",
                                         },
                                         "bbox": {
                                             "type": "array",
@@ -327,7 +328,7 @@ class GeminiAABBDetSeg:
 
             if not parsed_detections:
                 CONSOLE.warn(
-                    f"Gemini returned no parsable results after _parse_json. Original text was: {raw_json_output[:200] if raw_json_output else 'None'}"
+                    f"Gemini returned no parsable results after _parse_json. Original text was: {raw_json_output[:200] if response.text else 'None'}"
                 )
                 return []
 

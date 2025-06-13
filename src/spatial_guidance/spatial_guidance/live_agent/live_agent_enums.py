@@ -1,36 +1,71 @@
 from enum import Enum, auto
+from typing import NamedTuple
 
 
 class DirectionalStyle(Enum):
-    """Different styles for expressing directions."""
+    CLOCK_FACE = "clock"
+    CARTESIAN = "cartesian"
+    DEGREES = "degrees"
 
-    CLOCK_FACE = "clock"  # "at 2 o'clock"
-    RELATIVE = "relative"  # 3 meters to your right and 2.5 meters in front of you
-    COMPASS = "compass"  # "northeast"
-    DEGREES = "degrees"  # "30 degrees right"
-
-    def prompt(self) -> str:
+    def prompt(self):
         return {
-            "clock": "Express bearing as a clock-face (e.g. 'at 2 o'clock'). Use the rotation_clock from the result of the 'run_aabb_detection' tool.",
-            "relative": "Say 'to your right / left' and, if useful, include the lateral offset in metres.",
-            "compass": "Use compass points such as 'north-east'.",
-            "degrees": "State the bearing in degrees clockwise from straight ahead.",
-        }[self.value]
+            DirectionalStyle.CLOCK_FACE: "I express orientations using a clock-face bearing (e.g. “at 2 o'clock”, 12 = ahead). Read `rotation_clock` and `depth`.",
+            DirectionalStyle.CARTESIAN: "I report coordinates using the metric coordinates from `center_point_3d`: <x> meters to your right/left, <z> meters ahead/behind” (x right +, z forward +). Depending on the context, I may also use y (y down +).",
+            DirectionalStyle.DEGREES: "I report bearings in degrees clockwise from straight ahead (0 degrees = front), using `rotation_clock` and `depth`.",
+        }[self]
+
+    def examples(self):
+        q1 = "Where is the trash can?"
+        q2 = "Were is the next traffic light?"
+        return {
+            DirectionalStyle.CLOCK_FACE: [
+                f'Q: "{q1}"\nA: "The trash can is 2.5 meters away at 3 o\'clock."',
+                f'Q: "{q2}"\nA: "There are two traffic lights, one at 1 o\'clock, 3.2 meters away, and another at 5 o\'clock, 1.5 meters away."',
+            ],
+            DirectionalStyle.CARTESIAN: [
+                f'Q: "{q1}"\nA: "The trash can is 2.5 meters to your right and 1.0 meters ahead."',
+                f'Q: "{q2}"\nA: "There are two traffic lights, one 6.2 meters to your right and 8.5 meters ahead, and another 4.5 meters to your left and 2.0 meters ahead."',
+            ],
+            DirectionalStyle.DEGREES: [
+                f'Q: "{q1}"\nA: "The trash can is 20 degrees left at 2.5 m."',
+                f'Q: "{q2}"\nA: "There are two traffic lights, one at 30 degrees right and 5 meters ahead, and another at 65 degrees left at a distance of 3.2 meters."',
+            ],
+        }[self]
 
 
 class DistanceStyle(Enum):
-    """Different styles for expressing distances."""
+    PRECISE = "precise"
+    APPROXIMATE = "approximate"
 
-    PRECISE = "precise"  # "2.3 meters"
-    APPROXIMATE = "approximate"  # "about 2 meters"
-    RELATIVE = "relative"  # "arm's reach", "across the room"
+    def prompt(self):
+        return {
+            DistanceStyle.PRECISE: "I will report distance with one decimal place (e.g. 2.3 m).",
+            DistanceStyle.APPROXIMATE: "I will round to whole metres prefaced by “about/roughly”.",
+        }[self]
+
+    def examples(self):
+        return {
+            DistanceStyle.PRECISE: ["2.3 meters", "0.8 meters"],
+            DistanceStyle.APPROXIMATE: ["about 8 meters", "roughly 1 meter"],
+        }[self]
+
+
+# Combined direction and distance style for prompts
+class ResponseStyle(NamedTuple):
+    """Combined direction and distance style for prompts."""
+
+    dir_style: DirectionalStyle
+    dist_style: DistanceStyle
 
     def prompt(self) -> str:
-        return {
-            "precise": "Give the distance to one decimal place (e.g. '2.3 m').",
-            "approximate": "Round to whole metres (e.g. 'about 5 m').",
-            "relative": "Use qualitative phrases (e.g. 'arm's reach', 'half the room').",
-        }[self.value]
+        """Return combined style constraints."""
+        return f"I will express directions and distances in the following manner:\n{self.dir_style.prompt()}\n{self.dist_style.prompt()}"
+
+    def examples(self) -> str:
+        """Return example Q&A pairs using the combined style."""
+        return (
+            f"EXAMPLES on how I will express directions:\n{self.dir_style.examples()}"
+        )
 
 
 class GenState(Enum):

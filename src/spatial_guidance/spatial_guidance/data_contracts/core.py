@@ -182,7 +182,7 @@ class DataModel(BaseModel, abc.ABC):
         try:
             parsed_data = json_loads(s)
         except Exception as e:
-            console.error(f"Failed to load JSON: {e}")
+            console.error(e, "Failed to load JSON")
             return []
 
         # Handle wrapped objects list or unexpected types
@@ -193,7 +193,7 @@ class DataModel(BaseModel, abc.ABC):
         ):
             parsed_data = parsed_data["objects"]
         elif not isinstance(parsed_data, list):
-            console.error(f"Expected a list, but got {type(parsed_data)}.")
+            console.error(TypeError(f"Expected a list, but got {type(parsed_data)}"), "Expected a list")
             return []
 
         # Validate and collect items
@@ -202,7 +202,7 @@ class DataModel(BaseModel, abc.ABC):
             try:
                 validated.append(cls.model_validate(item))
             except Exception as e_item:
-                console.error(f"Validation error for item {item}: {e_item}")
+                console.error(e_item, f"Validation error for item {item}")
 
         if not validated and parsed_data:
             console.warn("All items failed validation, returning empty list.")
@@ -395,7 +395,7 @@ class DataModel(BaseModel, abc.ABC):
         try:
             parsed_data = json_loads(s)
         except Exception as e:
-            console.error(f"Failed to load JSON: {e}")
+            console.error(e, "Failed to load JSON")
             return []
 
         # Handle wrapped objects list or unexpected types
@@ -406,7 +406,7 @@ class DataModel(BaseModel, abc.ABC):
         ):
             parsed_data = parsed_data["objects"]
         elif not isinstance(parsed_data, list):
-            console.error(f"Expected a list, but got {type(parsed_data)}.")
+            console.error(TypeError(f"Expected a list, but got {type(parsed_data)}"), "Expected a list")
             return []
 
         # Validate and collect items
@@ -415,7 +415,7 @@ class DataModel(BaseModel, abc.ABC):
             try:
                 validated.append(cls.model_validate(item))
             except Exception as e_item:
-                console.error(f"Validation error for item {item}: {e_item}")
+                console.error(e_item, f"Validation error for item {item}")
 
         if not validated and parsed_data:
             console.warn("All items failed validation, returning empty list.")

@@ -176,9 +176,7 @@ class GeminiSceneDescriptor(BaseStep):
             return scene_description
 
         except Exception as e:
-            CONSOLE.error(
-                f"Error in scene description entrypoint: {e}\n{traceback.format_exc()}"
-            )
+            CONSOLE.error(e, "Error in scene description entrypoint")
             return SceneDescription(
                 immediate_safety_hazards="Error occurred during scene analysis.",
                 scene_description="Error occurred during scene analysis. Please try again.",
@@ -196,7 +194,7 @@ class GeminiSceneDescriptor(BaseStep):
         """
         detection_list = []
 
-        for obj in detections.objects:
+        for obj in detections.objects.values():
             detection_dict = {
                 "label": obj.label,
                 "med_depth": obj.med_depth,
@@ -334,7 +332,7 @@ class GeminiSceneDescriptor(BaseStep):
                     )
                     return scene_desc
                 except (json.JSONDecodeError, Exception) as e:
-                    CONSOLE.error(f"Failed to parse JSON response: {e}")
+                    CONSOLE.error(e, "Failed to parse JSON response")
                     # Return a fallback response with the raw text in scene_description
                     return SceneDescription(
                         immediate_safety_hazards="Unable to parse safety hazards from response.",
@@ -343,9 +341,7 @@ class GeminiSceneDescriptor(BaseStep):
                     )
 
         except Exception as e:
-            CONSOLE.error(
-                f"Error during Gemini scene analysis: {e}\n{traceback.format_exc()}"
-            )
+            CONSOLE.error(e, "Error during Gemini scene analysis")
             return SceneDescription(
                 immediate_safety_hazards="Error occurred during safety hazard analysis.",
                 scene_description=f"Error during scene analysis: {str(e)}",

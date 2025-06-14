@@ -107,7 +107,7 @@ class ResponseGenerator:
             return result
 
         except Exception as e:
-            self.console.error(f"Error generating response: {e}")
+            self.console.error(e, "Error generating response")
             return self._get_fallback_response(detections)
 
     def _create_prompt(
@@ -160,6 +160,7 @@ STYLE PREFERENCES:
 
         object_count = len(detections.objects)
         if object_count == 1:
-            return f"I can see one {detections.objects[0].label}."
+            first_obj = next(iter(detections.objects.values()))
+            return f"I can see one {first_obj.label}."
         else:
             return f"I can see {object_count} objects in the scene."

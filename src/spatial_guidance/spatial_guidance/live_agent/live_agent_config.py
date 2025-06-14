@@ -1,5 +1,5 @@
 import dis
-from typing import Annotated, Any, List, Literal, Type
+from typing import Annotated, Any, List, Literal, Self, Type
 from urllib import response
 
 import pyaudio
@@ -17,6 +17,7 @@ from .live_agent_enums import (
     ResponseStyle,
 )
 from .prompt_templates import LiveAgentPromptTemplates
+from .tools import LiveAgentTools
 
 MODEL_OPTIONS: dict[str, str] = {
     "gemini-2.5-flash-preview-05-20": "Gemini 2.5 Flash Preview(05-20) - adaptive thinking, cost-efficient",
@@ -34,13 +35,15 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
     dataset: StrayDatasetConfig = Field(default_factory=StrayDatasetConfig)
 
     # Expert Models
-    aabb_detseg: GeminiAABBDetSegConfig = GeminiAABBDetSegConfig()
-    num_detseg_attemts: int = 3
+    gemini_aabb_detseg: GeminiAABBDetSegConfig = GeminiAABBDetSegConfig(
+        visualize_rgb=True
+    )
+    num_detseg_attempts: int = 3
 
     # Tools
     enable_code_execution: bool = True
     """Enable code execution tool via _ExecAPI."""
-    tools: Annotated[List[types.Tool], Field(None)]
+    tools: Annotated[List[types.Tool], Field(default_factory=lambda: LiveAgentTools())]
 
     # Live API model configuration
     interaction_mode: InteractionMode = InteractionMode.TEXT
@@ -51,6 +54,10 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
     live_model_config: types.LiveConnectConfig = Field(
         default_factory=lambda: types.LiveConnectConfig(
             response_modalities=[types.Modality.TEXT, types.Modality.IMAGE],
+            # Low temperature minimises drift; modest nucleus & k keep phrasing varied without schema errors.
+            temperature=0.15,
+            top_p=0.9,
+            top_k=40,
             system_instruction=None,
             tools=None,
         )
@@ -73,68 +80,12 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
 
     @field_validator("tools", mode="before")
     @classmethod
-    def make_tools(cls, _, info: ValidationInfo) -> List[types.Tool]:
-        tools = []
-        aabb_detseg_config = info.data.get("aabb_detseg")
-        assert isinstance(aabb_detseg_config, GeminiAABBDetSegConfig)
-        run_aabb_detection_tool = aabb_detseg_config.make_tool()
-        # cache lookup – should be called first
-        tools.append(
-            types.Tool(
-                function_declarations=[
-                    types.FunctionDeclaration(
-                        name="get_last_detections",
-                        description="Return cached detections for this frame so the model can avoid re-running detection.",
-                        parameters={
-                            "type": "object",
-                            "properties": {
-                                "frame_idx": {"type": "integer"},
-                                "labels": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                },
-                            },
-                            "required": ["frame_idx", "labels"],
-                        },
-                        response=run_aabb_detection_tool.function_declarations[
-                            0
-                        ].response,
-                    )
-                ]
-            )
-        )
-        #         TOOLS (in order of preference)
-        # - `list_all_detections` - get a map from frame index to the labels of the detected objects. Use ths tool to get an overview of all chached detections in case of a long conversation.
-        # - `get_last_detections` - cache lookup. If you can recall that the object was already detected in the current frame, use this tool to avoid re-running detection.
-        # - `run_aabb_detection` - detect objects if cache misses.
-        # overview of all cached detections
-        tools.append(
-            types.Tool(
-                function_declarations=[
-                    types.FunctionDeclaration(
-                        name="list_all_detections",
-                        description="Return an overview of all cached detections: mapping from frame index to list of detected labels.",
-                        parameters=types.Schema(
-                            type="object",
-                            properties={},
-                            required=[],
-                        ),
-                        response=types.Schema(
-                            type="object",
-                            properties={"overview": types.Schema(type="object")},
-                            required=["overview"],
-                        ),
-                    )
-                ]
-            )
-        )
-        # expensive detector
-        tools.append(run_aabb_detection_tool)
-        # optional code execution (fallback only)
-        if info.data.get("enable_code_execution", False):
-            tools.append(types.Tool(code_execution=types.ToolCodeExecution))
-
-        return tools
+    def make_tools(
+        cls, tools: LiveAgentTools, info: ValidationInfo
+    ) -> list[types.Tool]:
+        """Create a default live model configuration."""
+        # Use the new tools - will be updated later with actual styles
+        return tools.setup_target(has_code_execution=info.data["enable_code_execution"])  # type: ignore
 
     @field_validator("system_instruction", mode="before")
     @classmethod
@@ -148,42 +99,25 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
     @model_validator(mode="after")
     def validate_live_model_config(self) -> "GeminiLiveAgentConfig":
         """Add tools to the live model configuration and set system instruction."""
+
         self.live_model_config.tools = self.tools
-
-        # Use the new prompt template - will be updated later with actual styles
         self.live_model_config.system_instruction = self.system_instruction
-
-        # Build tool overview: function name -> declarations
-        tools_info: dict[str, Any] = {}
-        for tool in self.tools:
-            for decl in getattr(tool, "function_declarations", []) or []:
-                # Dump only non-None schema fields
-                params_dict = (
-                    decl.parameters.model_dump(exclude_none=True)
-                    if decl.parameters
-                    else None
-                )
-                resp_dict = (
-                    decl.response.model_dump(exclude_none=True)
-                    if decl.response
-                    else None
-                )
-                entry: dict[str, Any] = {"description": decl.description}
-                if params_dict is not None:
-                    entry["parameters"] = params_dict
-                if resp_dict is not None:
-                    entry["response"] = resp_dict
-                tools_info[decl.name] = entry
 
         params_to_log = {
             "live_model": self.live_model,
             "interaction_mode": self.interaction_mode,
             "response_modalities": self.live_model_config.response_modalities,
-            "tools": tools_info,
+            "tools": LiveAgentTools.make_info(self.tools),
             "system_instruction": self.live_model_config.system_instruction,
         }
         console = Console.with_prefix(self.__class__.__name__)
         console.log(f"Live model configuration:")
-        console.plog(params_to_log)
+        console.plog(params_to_log, title="Live Model Parameters")
+
+        return self
+
+    @model_validator(mode="after")
+    def share_fields(self) -> Self:
+        self.gemini_aabb_detseg.is_debug = self.is_debug
 
         return self

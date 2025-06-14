@@ -3,7 +3,7 @@ import io
 import math
 import trace
 import traceback
-from typing import Annotated, Any, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Self, Tuple
 
 import numpy as np
 from PIL import Image as PILImage
@@ -38,6 +38,19 @@ def pixel_to_camera_coordinates(
     z_cam = depth
 
     return np.array([x_cam, y_cam, z_cam])
+
+
+def nearest_nonzero(depths: np.ndarray) -> float:
+    """
+    Return the smallest depth that is within 3x the local MAD.
+    """
+    depths = depths[depths > 0]
+    if depths.size == 0:
+        return 0.0
+    d0 = np.min(depths)
+    mad = np.median(np.abs(depths - np.median(depths)))
+    thresh = d0 + 3 * mad
+    return float(depths[depths < thresh].min())
 
 
 def camera_to_world_coordinates(
@@ -94,8 +107,8 @@ def compute_3d_center_from_bbox(
         if len(valid_depths) == 0:
             return None
 
-        # Use median depth for robust estimation
-        median_depth = np.median(valid_depths)
+        # Use a lower percentile (e.g. 10th) to avoid background bleed-through
+        median_depth = float(np.percentile(valid_depths, 10))
 
         # Center of bounding box in pixel coordinates
         center_x = (x0 + x1) / 2.0
@@ -112,7 +125,7 @@ def compute_3d_center_from_bbox(
 
     except Exception as e:
         Console.with_prefix("compute_3d_center_from_bbox").error(
-            f"Error computing 3D center: {e}"
+            e, "Error computing 3D center"
         )
         return None
 
@@ -149,18 +162,19 @@ def compute_3d_center_from_mask(
         if len(valid_depths) == 0:
             return None
 
-        # Use median depth for robust estimation
-        median_depth = np.median(valid_depths)
+        # Use a lower percentileto mitigate background depths
+        # median_depth = float(np.percentile(valid_depths, 10))
+        depth_val = nearest_nonzero(valid_depths)
 
         # Center of mass of the mask in pixel coordinates
         y_coords, x_coords = np.where(object_pixels)
-        center_x = np.mean(x_coords)
-        center_y = np.mean(y_coords)
+        center_x = np.median(x_coords)
+        center_y = np.median(y_coords)
         pixel_coords = np.array([center_x, center_y])
 
         # Convert to camera coordinates then to world coordinates
         camera_coords = pixel_to_camera_coordinates(
-            pixel_coords, median_depth, camera_intrinsics
+            pixel_coords, depth_val, camera_intrinsics
         )
         # world_coords = camera_to_world_coordinates(camera_coords, camera_pose)
 
@@ -168,7 +182,7 @@ def compute_3d_center_from_mask(
 
     except Exception as e:
         Console.with_prefix("compute_3d_center_from_mask").error(
-            f"Error computing 3D center: {e}"
+            e, "Error computing 3D center"
         )
         return None
 
@@ -231,7 +245,7 @@ def compute_rotation_from_3d_position(
 
     except Exception as e:
         Console.with_prefix("compute_rotation_from_3d_position").error(
-            f"Error computing rotation from 3D position: {e}"
+            e, "Error computing rotation from 3D position"
         )
         return None, None
 
@@ -324,7 +338,7 @@ def compute_rotation_from_bbox(
 
     except Exception as e:
         Console.with_prefix("compute_rotation_from_bbox").error(
-            f"Error computing rotation: {e}"
+            e, "Error computing rotation"
         )
         return None, None
 
@@ -368,6 +382,8 @@ class AABBDetection(DataModel):
     """Median depth (50th percentile) of the object in the scene in meters"""
     max_depth: Optional[float] = None
     """Maximum depth (90th percentile) of the object in the scene in meters"""
+    height_3d: Optional[float] = None
+    """Height of the object in the scene in meters, computed from the ground plane"""
 
     rotation_deg: Optional[float] = None
     """BEV rotation angle in degrees from forward z-axis in x-z plane. 0° = straight ahead (12 o'clock), computed from metric camera coordinates. Measured clockwise in Bird's Eye View perspective."""
@@ -394,8 +410,14 @@ class AABBDetection(DataModel):
             missing_padding = len(png_data) % 4
             if missing_padding:
                 png_data += "=" * (4 - missing_padding)
-                Console.with_prefix(cls.__name__, "validate_segmentation_mask").warn(
+                CONSOLE = Console.with_prefix(
+                    cls.__name__, "validate_segmentation_mask"
+                ).set_debug(True)
+                CONSOLE.warn(
                     f"Added padding to base64 string for item {info.data.get('label', 'unknown')}"
+                )
+                CONSOLE.plog(
+                    info.data, title="ValidationInfo.Data in validate_segmentation_mask"
                 )
             # try:
             png_bytes = base64.b64decode(png_data)
@@ -413,10 +435,8 @@ class AABBDetection(DataModel):
             return mask_img
 
         CONSOLE = Console.with_prefix(cls.__name__, "validate_segmentation_mask")
-        CONSOLE.error(
-            f"Invalid mask format for item {info.data['label']}\n"
-            f"Expected base64 PNG string, but got {type(v)}: {v}"
-        )
+        error_msg = f"Invalid mask format for item {info.data['label']}\nExpected base64 PNG string, but got {type(v)}: {v}"
+        CONSOLE.error(ValueError(error_msg), "Invalid mask format")
         return PILImage.new("L", (1, 1))
 
     @field_validator("box_2d", mode="before")
@@ -440,6 +460,7 @@ class AABBDetection(DataModel):
         depth_image: Optional[np.ndarray] = None,
         camera_intrinsics: Optional[np.ndarray] = None,
         camera_pose: Optional[np.ndarray] = None,
+        ground_plane: Optional[Tuple[np.ndarray, float]] = None,
     ) -> None:
         """
         Process the segmentation mask and bounding box for proper visualization.
@@ -507,10 +528,7 @@ class AABBDetection(DataModel):
                             self.med_depth = float(np.percentile(depth_values, 50))
                             self.max_depth = float(np.percentile(depth_values, 90))
                 except Exception as e:
-                    CONSOLE.error(
-                        f"Error calculating depth for {self.label}:\n"
-                        f"{e}\n{traceback.format_exc()}"
-                    )
+                    CONSOLE.error(e, f"Error calculating depth for {self.label}")
 
             # Compute 3D center and rotation if camera parameters are available
             if (
@@ -544,28 +562,35 @@ class AABBDetection(DataModel):
                         else (None, None)
                     )
                 except Exception as e:
-                    CONSOLE.error(
-                        f"Error computing 3D parameters for {self.label}:\n"
-                        f"{e}\n{traceback.format_exc()}"
-                    )
+                    CONSOLE.error(e, f"Error computing 3D parameters for {self.label}")
 
             self.mask = PILImage.fromarray(np_mask_full, mode="L")
             self.box_2d = np.array([abs_y0, abs_x0, abs_y1, abs_x1], dtype=np.float32)
 
+            center_for_height = (
+                self.center_3d_mask
+                if self.center_3d_mask is not None
+                else self.center_3d_bbox
+            )
+
+            # Height from ground‑plane
+            if ground_plane is not None and center_for_height is not None:
+                n, d = ground_plane
+                self.height_3d = float(np.dot(n, center_for_height) + d)
+            else:
+                self.height_3d = None
+
             self.processed_ = True
 
         except Exception as e:
-            CONSOLE.error(
-                f"Error processing object {self.label}:\n"
-                f"{e}\n{traceback.format_exc()}"
-            )
+            CONSOLE.error(e, f"Error processing object {self.label}")
 
 
 class AABBDetections(DataModel):
     """Complete analysis of a scene for navigation assistance."""
 
-    objects: List[AABBDetection]
-    """"List of detected objects in the scene"""
+    objects: Dict[str, AABBDetection]
+    """"Dictionary of detected objects in the scene, keyed by label"""
     visualization_rgb: Optional[Image] = Field(
         default=None, description="PIL Image of RGB detections overlay"
     )
@@ -582,6 +607,7 @@ class AABBDetections(DataModel):
         ] = None,  # Changed to PILImage.Image for consistency
         camera_intrinsics: Optional[np.ndarray] = None,
         camera_pose: Optional[np.ndarray] = None,
+        ground_plane: Optional[Tuple[np.ndarray, float]] = None,
     ) -> None:
         """
         Process all detection objects with the given image dimensions.
@@ -597,25 +623,30 @@ class AABBDetections(DataModel):
             np.array(depth_image, dtype=np.float32) if depth_image is not None else None
         )
 
-        for obj in self.objects:
+        for obj in self.objects.values():
             obj.process(
-                img_size, confidence_thresh, depth_array, camera_intrinsics, camera_pose
+                img_size,
+                confidence_thresh,
+                depth_array,
+                camera_intrinsics,
+                camera_pose,
+                ground_plane,
             )
 
-    def __getitem__(self, index: int) -> AABBDetection:
-        return self.objects[index]
+    def __getitem__(self, label: str) -> AABBDetection:
+        return self.objects[label]
 
     def __len__(self) -> int:
         return len(self.objects)
 
     def __iter__(self):
-        return iter(self.objects)
+        return iter(self.objects.values())
 
     def to_list_dict(self) -> list[dict[str, Any]]:
         """Return AABB detections as a JSON list with label, bbox, and median depth."""
 
         detections_list = []
-        for obj in self.objects:
+        for obj in self.objects.values():
             detection_dict = {
                 "label": obj.label,
                 "bbox": (
@@ -624,61 +655,103 @@ class AABBDetections(DataModel):
                     else list(obj.box_2d)
                 ),
                 "center_point_3d": (
-                    obj.center_3d_mask
+                    obj.center_3d_mask.tolist()
                     if obj.center_3d_mask is not None
-                    else obj.center_3d_bbox
-                ).tolist(),  # type: ignore
+                    else (
+                        obj.center_3d_bbox.tolist()
+                        if obj.center_3d_bbox is not None
+                        else None
+                    )
+                ),
                 "depth": float(obj.med_depth or float("nan")),
                 "rotation_clock": int(obj.rotation_clock or float("nan")),
                 "rotation_deg": float(obj.rotation_deg or float("nan")),
+                "height_3d": float(obj.height_3d or float("nan")),
             }
             detections_list.append(detection_dict)
 
         return detections_list
 
-    def merge_with(self, other: "AABBDetections") -> "AABBDetections":
+    def merge_with(self, other: Self) -> Self:
         """
-        Merge this AABBDetections with another, combining all objects.
+        Merge another AABBDetections object into this one.
 
         Args:
-            other: Another AABBDetections object to merge with
+            other: Another AABBDetections object to merge
 
         Returns:
-            New AABBDetections object containing objects from both
+            Self: The merged AABBDetections object
         """
-        # Combine all objects from both detections
-        merged_objects = list(self.objects) + list(other.objects)
+        if not isinstance(other, AABBDetections):
+            raise TypeError(f"Expected AABBDetections, got {type(other).__name__}")
 
-        # Create new merged AABBDetections
-        merged = AABBDetections(
-            objects=merged_objects,
-            # Keep the first visualization if available, otherwise use the second
-            visualization_rgb=self.visualization_rgb or other.visualization_rgb,
-            visualization_depth=self.visualization_depth or other.visualization_depth,
-        )
+        # Merge objects based on their labels
+        self.objects.update(other.objects)
+        return self
 
-        return merged
+    def as_dict(self) -> dict[str, AABBDetection]:
+        """
+        Convert the AABBDetections to a dictionary with labels as keys.
+
+        Returns:
+            dict[str, AABBDetection]: Dictionary mapping labels to AABBDetection objects
+        """
+        return self.objects.copy()
+
+    def add_detection(self, detection: AABBDetection) -> None:
+        """Add a detection to the objects dictionary."""
+        self.objects[detection.label] = detection
+
+    def remove_detection(self, label: str) -> bool:
+        """Remove a detection by label. Returns True if removed, False if not found."""
+        return self.objects.pop(label, None) is not None
+
+    def get_detection(self, label: str) -> Optional[AABBDetection]:
+        """Get a detection by label."""
+        return self.objects.get(label)
+
+    def has_detection(self, label: str) -> bool:
+        """Check if a detection with the given label exists."""
+        return label in self.objects
+
+    def get_labels(self) -> list[str]:
+        """Get all detection labels."""
+        return list(self.objects.keys())
+
+    def to_dict(self) -> dict[str, dict[str, Any]]:
+        """Convert to dictionary format for tool responses."""
+        return {
+            label: {
+                "label": obj.label,
+                "bbox": (
+                    obj.box_2d.tolist()
+                    if hasattr(obj.box_2d, "tolist")
+                    else list(obj.box_2d)
+                ),
+                "center_point_3d": (
+                    obj.center_3d_mask.tolist()
+                    if obj.center_3d_mask is not None
+                    else (
+                        obj.center_3d_bbox.tolist()
+                        if obj.center_3d_bbox is not None
+                        else None
+                    )
+                ),
+                "depth": float(obj.med_depth or float("nan")),
+                "rotation_clock": int(obj.rotation_clock or float("nan")),
+                "rotation_deg": float(obj.rotation_deg or float("nan")),
+                "height_3d": float(obj.height_3d or float("nan")),
+            }
+            for label, obj in self.objects.items()
+        }
 
     @classmethod
-    def merge_multiple(cls, detections_list: List["AABBDetections"]) -> "AABBDetections":
-        """
-        Merge multiple AABBDetections objects into one.
+    def from_dict(cls, detections_dict: dict[str, AABBDetection]) -> "AABBDetections":
+        """Create AABBDetections from a dictionary of detections."""
+        return cls(objects=detections_dict)
 
-        Args:
-            detections_list: List of AABBDetections objects to merge
-
-        Returns:
-            New AABBDetections object containing objects from all inputs
-        """
-        if not detections_list:
-            return cls(objects=[])
-
-        if len(detections_list) == 1:
-            return detections_list[0]
-
-        # Start with the first detection and merge all others
-        result = detections_list[0]
-        for detection in detections_list[1:]:
-            result = result.merge_with(detection)
-
-        return result
+    @classmethod
+    def from_list(cls, detections_list: list[AABBDetection]) -> "AABBDetections":
+        """Create AABBDetections from a list of detections."""
+        objects_dict = {det.label: det for det in detections_list}
+        return cls(objects=objects_dict)

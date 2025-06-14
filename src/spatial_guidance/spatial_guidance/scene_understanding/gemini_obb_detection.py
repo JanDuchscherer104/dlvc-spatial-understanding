@@ -220,7 +220,7 @@ class GeminiOBBDet(BaseStep):
                     OBBDetection.model_validate(raw_det.model_dump())
                 )
             except Exception as e:
-                CONSOLE.error(f"Error processing raw detection '{raw_det.label}': {e}")
+                CONSOLE.error(e, f"Error processing raw detection '{raw_det.label}'")
 
         obb_detections = OBBDetections(objects=detections_list)
 

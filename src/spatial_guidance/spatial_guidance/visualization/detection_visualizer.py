@@ -113,7 +113,7 @@ class DetectionVisualizer:
             "#FF0080",
         ]
 
-        for i, obj in enumerate(detections.objects):
+        for i, obj in enumerate(detections.objects.values()):
             color = colors[i % len(colors)]
             if isinstance(obj.mask, PILImage.Image):
                 result_img = DetectionVisualizer._overlay_mask_on_img(
@@ -130,7 +130,7 @@ class DetectionVisualizer:
                 font = ImageFont.load_default()
 
         if show_boxes:
-            for i, obj in enumerate(detections.objects):
+            for i, obj in enumerate(detections.objects.values()):
                 color = colors[i % len(colors)]
                 y0_abs, x0_abs, y1_abs, x1_abs = obj.box_2d  # Absolute coords
 
@@ -141,7 +141,7 @@ class DetectionVisualizer:
                     width=actual_line_width,
                 )
 
-        for i, obj in enumerate(detections.objects):
+        for i, obj in enumerate(detections.objects.values()):
             if not obj.label:
                 continue
             color = colors[i % len(colors)]
@@ -302,7 +302,7 @@ class DetectionVisualizer:
             except IOError:
                 font = ImageFont.load_default()
 
-        for i, obj in enumerate(detections.objects):
+        for i, obj in enumerate(detections.objects.values()):
             color = colors[i % len(colors)]
             y0_abs, x0_abs, y1_abs, x1_abs = obj.box_2d  # Absolute coords
 
@@ -499,7 +499,7 @@ class DetectionVisualizer:
 
         # Calculate correct BEV bounds using the working notebook formula
         xs, ys = [], []
-        for det in obb_detections.objects:
+        for det in obb_detections.objects.values():
             if det.box_3d:
                 cx, cy, _, sx, sy, _, _, _, _ = det.box_3d
                 # Add box extents to bounds calculation

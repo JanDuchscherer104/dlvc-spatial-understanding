@@ -29,6 +29,7 @@ except ImportError:
 from spatial_guidance.data_contracts import AABBDetections
 from spatial_guidance.live_agent import (
     MODEL_OPTIONS,
+    AudioEvt,
     DetectionsEvt,
     DirectionalStyle,
     DistanceStyle,
@@ -70,14 +71,10 @@ def init_session_state():
         st.session_state.chat_history = []
     if "detection_results" not in st.session_state:
         st.session_state.detection_results = {}
-    if "subset_results" not in st.session_state:
-        st.session_state.subset_results = {}
     if "live_session_active" not in st.session_state:
         st.session_state.live_session_active = False
     if "current_dataset" not in st.session_state:
         st.session_state.current_dataset = None
-    if "live_responses" not in st.session_state:
-        st.session_state.live_responses = []
     if "current_model" not in st.session_state:
         st.session_state.current_model = None
     if "current_interaction_mode" not in st.session_state:
@@ -90,7 +87,6 @@ def check_dataset_change(dataset_dir: Path):
         st.session_state.current_dataset = str(dataset_dir)
         st.session_state.chat_history = []
         st.session_state.live_session_active = False
-        st.session_state.live_responses = []
         CONSOLE.log(f"Dataset changed to {dataset_dir}, cleared session")
 
 
@@ -369,25 +365,111 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
             st.warning("No valid depth data found in this frame")
 
     with det_tab:
-        # Show cached detection results if available
-        det_key = f"det_{frame_idx}"
-        if det_key in st.session_state.detection_results:
-            detections = st.session_state.detection_results[det_key]
+        # Get list of all available detection keys, sorted by frame index
+        available_det_keys = []
+        for key in st.session_state.detection_results.keys():
+            if key.startswith("det_"):
+                try:
+                    frame_num = int(key.split("_")[1])
+                    available_det_keys.append((frame_num, key))
+                except (IndexError, ValueError):
+                    continue
+
+        # Sort by frame number
+        available_det_keys.sort(key=lambda x: x[0])
+        detection_keys = [key for _, key in available_det_keys]
+
+        # Initialize navigation index for detection browsing
+        if "det_nav_key_idx" not in st.session_state:
+            # Find the current frame's detection if it exists, otherwise start at 0
+            current_det_key = f"det_{frame_idx}"
+            if current_det_key in detection_keys:
+                st.session_state.det_nav_key_idx = detection_keys.index(current_det_key)
+            elif detection_keys:
+                st.session_state.det_nav_key_idx = 0
+            else:
+                st.session_state.det_nav_key_idx = None
+
+        # Ensure the index is valid
+        if st.session_state.det_nav_key_idx is not None and detection_keys:
+            if st.session_state.det_nav_key_idx >= len(detection_keys):
+                st.session_state.det_nav_key_idx = len(detection_keys) - 1
+            elif st.session_state.det_nav_key_idx < 0:
+                st.session_state.det_nav_key_idx = 0
+
+        # Display detection navigation info
+        if detection_keys:
+            current_idx = st.session_state.det_nav_key_idx or 0
+            current_key = detection_keys[current_idx]
+            current_frame_num = int(current_key.split("_")[1])
+
+            st.info(
+                f"📍 Viewing detection from Frame {current_frame_num} ({current_idx + 1}/{len(detection_keys)} total detections)"
+            )
+
+        # Navigation buttons for previous/next detections
+        nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
+
+        with nav_col1:
+            if st.button(
+                "⬅️ Previous Detection",
+                key=f"prev_det_{frame_idx}",
+                disabled=not detection_keys,
+            ):
+                if detection_keys and st.session_state.det_nav_key_idx > 0:
+                    st.session_state.det_nav_key_idx -= 1
+                    st.rerun()
+
+        with nav_col2:
+            if st.button("🔄 Current Frame", key=f"curr_det_{frame_idx}"):
+                # Jump to current frame's detection if it exists
+                current_det_key = f"det_{frame_idx}"
+                if current_det_key in detection_keys:
+                    st.session_state.det_nav_key_idx = detection_keys.index(
+                        current_det_key
+                    )
+                    st.rerun()
+                else:
+                    st.warning(f"No detection available for frame {frame_idx}")
+
+        with nav_col3:
+            if st.button(
+                "➡️ Next Detection",
+                key=f"next_det_{frame_idx}",
+                disabled=not detection_keys,
+            ):
+                if (
+                    detection_keys
+                    and st.session_state.det_nav_key_idx is not None
+                    and st.session_state.det_nav_key_idx < len(detection_keys) - 1
+                ):
+                    st.session_state.det_nav_key_idx += 1
+                    st.rerun()
+
+        # Display current detection if available
+        if detection_keys and st.session_state.det_nav_key_idx is not None:
+            current_det_key = detection_keys[st.session_state.det_nav_key_idx]
+            detections = st.session_state.detection_results[current_det_key]
+            current_frame_num = int(current_det_key.split("_")[1])
+
             assert isinstance(
                 detections, AABBDetections
             ), f"Expected AABBDetections type, got {type(detections)}"
+
             st.image(
                 detections.visualization_rgb,
-                caption="Detections",
+                caption=f"Detections from Frame {current_frame_num}",
                 use_container_width=True,
             )
 
             # Show object details in an interactive table
             if detections.objects:
-                st.subheader(f"Detected Objects ({len(detections.objects)})")
+                st.subheader(
+                    f"Frame {current_frame_num} - Detected Objects ({len(detections.objects)})"
+                )
 
                 rows = []
-                for obj in detections.objects:
+                for obj in detections.objects.values():
                     rows.append(
                         {
                             "Label": obj.label,
@@ -411,8 +493,12 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
 
                 df = pd.DataFrame(rows)
                 st.dataframe(df, use_container_width=True)
+            else:
+                st.info(f"No objects detected in Frame {current_frame_num}")
         else:
-            st.info("Run object detection to see results here")
+            st.info(
+                "No detection results available. Run object detection to see results here."
+            )
 
 
 def get_suggested_prompts(mode: OperationalMode) -> List[str]:
@@ -458,7 +544,7 @@ def handle_chat_interaction(
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("🤖 Processing with Live Agent..."):
+        with st.spinner("🤖 Live Agent is processing..."):
             try:
                 # Send query to the actor-based live agent
                 live_agent.ask(user_input, frame_idx)
@@ -494,18 +580,14 @@ def handle_chat_interaction(
 
                     if isinstance(event, TextEvt):
                         text_chunks.append(event.text)
-                        # Capture response time from the event
                         if event.response_time_ms is not None:
                             response_time_ms = event.response_time_ms
-
                     elif isinstance(event, DetectionsEvt):
                         detection_result = event.detections
                         det_key = f"det_{event.frame_idx}"
                         st.session_state.detection_results[det_key] = detection_result
-                        # Capture response time from detection event too
                         if event.response_time_ms is not None:
                             response_time_ms = event.response_time_ms
-
                     elif isinstance(event, ErrorEvt):
                         st.error(f"Live Agent Error: {event.error}")
                         text_chunks = [f"Sorry, I encountered an error: {event.error}"]
@@ -561,7 +643,7 @@ def handle_chat_interaction(
                     st.markdown(response_text)
 
             except Exception as e:
-                CONSOLE.error(f"Error communicating with Live Agent: {e}")
+                CONSOLE.error(e, "Error communicating with Live Agent")
                 st.error(f"Error communicating with Live Agent: {e}")
                 response_text = f"Sorry, I encountered an error: {str(e)}"
 
@@ -640,8 +722,6 @@ def display_chat_interface(
         if prompt := st.chat_input("Ask about the scene..."):
             handle_chat_interaction(live_agent, frame_idx, prompt)
             st.rerun()
-    else:
-        display_voice_interface(live_agent, frame_idx)
 
 
 def display_voice_interface(live_agent: GeminiLiveAgent, frame_idx: int):
@@ -658,6 +738,7 @@ def display_voice_interface(live_agent: GeminiLiveAgent, frame_idx: int):
     )
 
     def audio_frame_callback(frame: av.AudioFrame) -> av.AudioFrame:
+        raise NotImplementedError()
         """Process audio frames from microphone."""
         # Convert audio frame to raw audio data
         audio_data = frame.to_ndarray()
@@ -770,23 +851,6 @@ def display_session_info(live_agent: GeminiLiveAgent):
         st.sidebar.warning("🟡 Actor: Not started")
 
 
-def run_async_in_thread(coro):
-    """Run async function in a separate thread to avoid event loop conflicts."""
-
-    def run_in_thread():
-        # Create a new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
-
-    with ThreadPoolExecutor() as executor:
-        future = executor.submit(run_in_thread)
-        return future.result()
-
-
 def handle_frame_context_change(live_agent: GeminiLiveAgent, frame_idx: int):
     """Handle frame context changes using the actor pattern."""
     # Track the last frame index in session state
@@ -803,7 +867,7 @@ def handle_frame_context_change(live_agent: GeminiLiveAgent, frame_idx: int):
             live_agent.set_current_frame(frame_idx)
             CONSOLE.log(f"Set frame {frame_idx} context via actor pattern")
         except Exception as e:
-            CONSOLE.error(f"Failed to set frame context: {e}")
+            CONSOLE.error(e, "Failed to set frame context")
 
 
 # Main Application

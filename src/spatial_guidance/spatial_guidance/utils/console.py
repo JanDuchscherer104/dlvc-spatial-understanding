@@ -90,15 +90,35 @@ class Console(RichConsole):
                 f"[dim]{self._get_caller_stack()}[/dim]"
             )
 
-    def error(self, message: str) -> None:
-        self.print(
-            f"[bright_red]Error:[/bright_red] {self._format_message(message)}\n"
-            f"[dim]{self._get_caller_stack()}[/dim]"
-        )
+    def error(self, exception: Exception, message: Optional[str] = None) -> None:
+        """Print error information including exception details and stack trace."""
+        error_msg = message if message else str(exception)
+        exception_type = type(exception).__name__
 
-    def plog(self, obj: Any, **kwargs) -> None:
+        # Format the error message with exception type and message
+        formatted_error = f"[bright_red]Error ({exception_type}):[/bright_red] {self._format_message(error_msg)}"
+
+        # Add the full exception details
+        if str(exception) != error_msg:
+            formatted_error += f"\n[dim]Exception: {str(exception)}[/dim]"
+
+        # Add the full traceback if available
+        if hasattr(exception, "__traceback__") and exception.__traceback__:
+            tb_lines = traceback.format_exception(
+                type(exception), exception, exception.__traceback__
+            )
+            formatted_error += f"\n[dim]Full traceback:\n{''.join(tb_lines)}[/dim]"
+        else:
+            # Fall back to caller stack if no traceback available
+            formatted_error += f"\n[dim]{self._get_caller_stack()}[/dim]"
+
+        self.print(formatted_error)
+
+    def plog(self, obj: Any, title: Optional[str] = None, **kwargs) -> None:
         """Pretty print an object using rich."""
         if self.verbose:
+            if title:
+                self.log(f"[bold]{title}[/bold]")
             self.print(pformat(obj, **kwargs))
 
     def dbg(self, message: str) -> None:
@@ -192,10 +212,10 @@ class Console(RichConsole):
             else:
                 self.print_schema(instructions)
 
-        except json.JSONDecodeError:
-            self.error(f"Failed to parse schema JSON: {instructions[:100]}...")
+        except json.JSONDecodeError as e:
+            self.error(e, f"Failed to parse schema JSON: {instructions[:100]}...")
         except Exception as e:
-            self.error(f"Error formatting instructions: {str(e)}")
+            self.error(e, f"Error formatting instructions")
 
     def print_schema(self, schema_json: str) -> None:
         """
@@ -241,7 +261,7 @@ class Console(RichConsole):
             )
 
             self.print(formatted)
-        except json.JSONDecodeError:
-            self.error(f"Failed to parse schema JSON: {schema_json[:100]}...")
+        except json.JSONDecodeError as e:
+            self.error(e, f"Failed to parse schema JSON: {schema_json[:100]}...")
         except Exception as e:
-            self.error(f"Error formatting schema: {str(e)}")
+            self.error(e, f"Error formatting schema")

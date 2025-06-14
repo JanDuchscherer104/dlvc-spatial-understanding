@@ -1,4 +1,4 @@
-from .actor_protocols import DetectionsEvt, ErrorEvt, TextEvt
+from .actor_protocols import AudioEvt, DetectionsEvt, ErrorEvt, TextEvt
 from .gemini_live_agent import GeminiLiveAgent
 from .live_agent_config import MODEL_OPTIONS, GeminiLiveAgentConfig
 from .live_agent_enums import (
@@ -7,7 +7,6 @@ from .live_agent_enums import (
     InteractionMode,
     ModePromptTemplates,
     OperationalMode,
-    ResponseStyle,
 )
 
 __all__ = [
@@ -22,5 +21,5 @@ __all__ = [
     "InteractionMode",
     "ModePromptTemplates",
     "OperationalMode",
-    "ResponseStyle",
+    "AudioEvt",
 ]

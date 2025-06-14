@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 from PIL.Image import Image
@@ -35,4 +35,11 @@ class DatasetOut(DataModel):
 
         where R is the rotation matrix from the unit quaternion (qx,qy,qz,qw)
         and t = [x, y, z]^T is the camera center in world coordinates.
+    """
+    ground_plane: Optional[Tuple[np.ndarray, float]] = None
+    """
+    Optional ground plane parameters in camera coordinates.
+    Tuple of (normal, d) where the plane equation is: normal^T * x + d = 0
+    - normal: 3D unit vector representing the plane normal
+    - d: scalar distance parameter
     """

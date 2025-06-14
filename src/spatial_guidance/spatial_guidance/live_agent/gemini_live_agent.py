@@ -24,7 +24,6 @@ from .actor_protocols import (
     _Cmd,
     _Evt,
 )
-from .exec_api import _ExecAPI
 from .live_agent_enums import (
     DirectionalStyle,
     DistanceStyle,
@@ -58,7 +57,9 @@ class GeminiLiveAgent:
         dataset_dir: Optional[Path] = None,
     ):
         self.config = config
-        self.console = Console.with_prefix(self.__class__.__name__)
+        self.console = Console.with_prefix(self.__class__.__name__).set_debug(
+            self.config.is_debug
+        )
 
         # Initialize the live client
         self.live_client = genai.Client(
@@ -67,7 +68,7 @@ class GeminiLiveAgent:
         )
 
         # Initialize expert models
-        self.aabb_detector = self.config.aabb_detseg.setup_target()
+        self.aabb_detector = self.config.gemini_aabb_detseg.setup_target()
 
         # Setup dataset
         self.update_dataset(dataset_dir=dataset_dir, is_rotated=is_rotated)
@@ -81,7 +82,8 @@ class GeminiLiveAgent:
         self.actor_thread: Optional[threading.Thread] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.session: Optional[AsyncSession] = None
-        self.current_frame_idx: Optional[int] = None
+        self.last_frame_idx: Optional[int] = None
+        self.current_frame_idx: int = 0
 
         # Audio setup
         self.audio_in_queue: Optional[asyncio.Queue[bytes]] = None
@@ -89,13 +91,13 @@ class GeminiLiveAgent:
         self.audio_stream: Optional[pyaudio.Stream] = None
         self.pya: Optional[pyaudio.PyAudio] = None
 
-        # Detection cache: maps (frame_idx, subset_mode, user_prompt) to AABBDetections
-        self._detection_cache: dict[tuple[int, bool, str], AABBDetections] = {}
+        # Detection cache: maps (frame_idx, detection_mode, user_prompt) to AABBDetections
+        self._detection_cache: dict[tuple[int, Optional[str], str], AABBDetections] = {}
 
         # Now keyed by (frame_idx: dict[label: detections_json])
-        self._last_detections: dict[int, dict[str, dict]] = {}
-
-        self._exec_api = _ExecAPI(self)
+        self._last_detections: dict[int, dict[str, dict]] = (
+            {}
+        )  # TODO: switch to dict[tuple[int, str], dict] for (frame_idx, label) -> detection_json
 
         # Buffer that accumulates streamed text chunks for the current assistant
         # turn.  Flushed when we receive `generation_complete`/`turn_complete`
@@ -106,9 +108,6 @@ class GeminiLiveAgent:
 
         # Track pending queries for response time calculation
         self._pending_queries: dict[str, float] = {}
-
-        # Remove initial frame context enqueue; set current_frame_idx if dataset non-empty
-        self.current_frame_idx = 0
 
         # Start the actor
         self._start_actor()
@@ -142,7 +141,7 @@ class GeminiLiveAgent:
         try:
             self.loop.run_until_complete(self._main_async())
         except Exception as e:
-            self.console.error(f"Actor loop error: {e}")
+            self.console.error(e, "Actor loop error")
             traceback.print_exc()
         finally:
             self.loop.close()
@@ -155,14 +154,14 @@ class GeminiLiveAgent:
             try:
                 self.session.close()
             except Exception as e:
-                self.console.error(f"Error closing session: {e}")
+                self.console.error(e, "Error closing session")
             self.session = None
         # Stop current event loop to exit actor
         if self.loop is not None and self.loop.is_running():
             try:
                 self.loop.call_soon_threadsafe(self.loop.stop)
             except Exception as e:
-                self.console.error(f"Error stopping event loop: {e}")
+                self.console.error(e, "Error stopping event loop")
         # Start a new actor thread to reconnect
         self._start_actor()
 
@@ -175,11 +174,14 @@ class GeminiLiveAgent:
             ) as session:
                 self.session = session
                 # Send initial frame context once session is live
-                if self.current_frame_idx is not None:
+                if (
+                    self.last_frame_idx is None
+                    or self.last_frame_idx != self.current_frame_idx
+                ):
                     try:
                         await self._send_frame_context(self.current_frame_idx)
                     except Exception as e:
-                        self.console.error(f"Failed sending initial frame: {e}")
+                        self.console.error(e, "Failed sending initial frame")
                 self.console.log("Live API session started")
 
                 # Create task group for consumer and producer
@@ -199,31 +201,26 @@ class GeminiLiveAgent:
                         tg.create_task(self._play_audio())
 
         except Exception as e:
-            self.console.error(f"Main async error: {e}")
+            self.console.error(e, "Main async error")
             self.out_q.put(ErrorEvt(error=str(e)))
 
     async def _consumer(self):
         """Consumes commands from in_q and executes them."""
         while True:
             try:
-                # Non-blocking check for commands
-                try:
-                    cmd = self.in_q.get_nowait()
-                except Empty:
-                    await asyncio.sleep(0.01)  # Small delay to prevent busy waiting
-                    continue
+                # Block in thread until a command is available
+                cmd = await asyncio.to_thread(self.in_q.get)
 
-                # Track query timing for AskCmd
-                if isinstance(cmd, AskCmd):
+                if isinstance(cmd, SetFrameCmd):
+                    await self._handle_set_frame_cmd(cmd)
+                elif isinstance(cmd, AskCmd):
                     self._pending_queries[cmd.query_id] = cmd.timestamp
                     await self._handle_ask_cmd(cmd)
                 elif isinstance(cmd, AudioCmd):
                     await self._handle_audio_cmd(cmd)
-                elif isinstance(cmd, SetFrameCmd):
-                    await self._handle_set_frame_cmd(cmd)
 
             except Exception as e:
-                self.console.error(f"Consumer error: {e}")
+                self.console.error(e, "Consumer error")
                 self.out_q.put(ErrorEvt(error=str(e)))
 
     async def _producer(self):
@@ -248,25 +245,26 @@ class GeminiLiveAgent:
                                         if response.server_content
                                         else None
                                     ),
-                                }
+                                },
+                                title="Live API Response",
                             )
                         except Exception:
                             pass
                     # ─────────────────────
                     if response.server_content and response.server_content.model_turn:
                         for part in response.server_content.model_turn.parts:
-                            # Code execution is disabled in config, so no executable_code handling needed
-
                             # Log code execution results (if present from server - should not happen with disabled code execution)
                             if part.code_execution_result is not None:
                                 self.console.plog(
                                     {"result": part.code_execution_result.output},
+                                    title="Code Execution Result",
                                 )
                                 # Do not surface internal execution output to the chat UI
                                 self.console.plog(
                                     {
                                         "debug_execution_result": part.code_execution_result.output
-                                    }
+                                    },
+                                    title="Debug Execution Output",
                                 )
 
                     # ── State‐machine buffering ──
@@ -326,7 +324,7 @@ class GeminiLiveAgent:
                         await self.audio_in_queue.put(response.data)
 
             except Exception as e:
-                self.console.error(f"Producer error: {e}")
+                self.console.error(e, "Producer error")
                 self.out_q.put(ErrorEvt(error=str(e)))
                 await asyncio.sleep(0.1)
 
@@ -336,7 +334,7 @@ class GeminiLiveAgent:
             return
 
         # Set frame if provided
-        if cmd.frame_idx is not None:
+        if cmd.frame_idx is not None and cmd.frame_idx != self.current_frame_idx:
             await self._send_frame_context(cmd.frame_idx)
 
         # Send text query as completed turn
@@ -356,7 +354,6 @@ class GeminiLiveAgent:
     async def _handle_set_frame_cmd(self, cmd: SetFrameCmd):
         """Handle set frame command."""
         if self.session is not None and cmd.frame_idx != self.current_frame_idx:
-            self.current_frame_idx = cmd.frame_idx
             await self._send_frame_context(cmd.frame_idx)
 
     async def _send_frame_context(self, frame_idx: int) -> None:
@@ -365,45 +362,27 @@ class GeminiLiveAgent:
             return
         try:
             frame = self.dataset[frame_idx]
-            # This is an error in the genai SDK!
-            # buf = io.BytesIO()
-            # frame.rgb_image.save(buf, format="JPEG")
-            # # blob = types.Blob(data=buf.getvalue(), mime_type="image/jpeg")
-            # self.session.send_realtime_input()
-            # await self.session.send_client_content(
-            #     turns=types.Content(
-            #         role="user",
-            #         parts=[
-            #             # self.dataset[frame_idx].rgb_image,
-            #             # types.Part(inline_data=blob),
-            #             types.Part(
-            #                 inline_data=types.Blob(
-            #                     data=base64.b64encode(buf.getvalue()).decode("utf-8"),
-            #                     mime_type="image/jpeg",
-            #                 ),
-            #             ),
-            #             types.Part.from_text(
-            #                 text=(
-            #                     f"I'm now looking at frame {frame_idx} from the dataset. "
-            #                     "I'm seeing what the visually impaired user is seeing."
-            #                 )
-            #             ),
-            #         ],
-            #     ),
-            #     turn_complete=True,
-            # )
+            # TODO: Use frame.camera_pose to provide spatial context on how we moved relative to the last frame
+            self.console.plog(frame.ground_plane, title="Frame Ground Plane")
+
             await self.session.send_realtime_input(
                 media=frame.rgb_image,
             )
+            await asyncio.sleep(0.2)  # Give some time for the image to be processed
             await self.session.send_realtime_input(
-                text=f"[SYSTEM] I'm now looking at frame {frame_idx} from the dataset. "
-                "I'm seeing what the visually impaired user is seeing."
+                text=f"<SYSTEM>[NEW FRAME] Updated frame_idx to '{frame_idx}'. You are seeing what the user sees.</SYSTEM>\n"
             )
+            # rovide a concise description of all relevant objects in the scene to aquire an improved understanding of the environment. This will improve your capacities to answer potential user queries about the scene."
+            #  If you see any potential hazards, call 'warn_user' TODO
+
+            # self._phase = ...
             # TODO: The model should reply with a response if and only if it sees any potential hazards in the frame and warn the user about them!
+            self.current_frame_idx = frame_idx
+            self.last_frame_idx = frame_idx
 
             self.console.log(f"Sent frame {frame_idx} context to Live API")
         except Exception as e:
-            self.console.error(f"Error sending frame context: {e}")
+            self.console.error(e, "Error sending frame context")
             raise e
 
     async def _handle_tool_call(
@@ -411,41 +390,18 @@ class GeminiLiveAgent:
     ) -> Optional[types.FunctionResponse]:
         """Handle tool calls from the model."""
         self.console.log(f"[TOOL CALL] Received function call")
-        self.console.plog(tool_call)
+        self.console.plog(tool_call, title="Tool Call Details")
 
         fc_responses: list[types.FunctionResponse] = []
         for fc in tool_call.function_calls:
-            # Handle overview of all cached detections
-            if fc.name == "list_all_detections":
-                # Build overview: frame_idx -> list of labels
-                overview = {
-                    frame_idx: list(label_dict.keys())
-                    for frame_idx, label_dict in self._last_detections.items()
-                }
-                if self.config.is_debug:
-                    self.console.plog(
-                        {
-                            "list_all_detections": overview,
-                            "num_frames": len(overview),
-                            "num_labels": sum(
-                                len(labels) for labels in overview.values()
-                            ),
-                        }
-                    )
-                fc_responses.append(
-                    types.FunctionResponse(
-                        id=fc.id,
-                        name=fc.name,
-                        response={"overview": overview},
-                    )
-                )
-            elif fc.name == "get_last_detections":
+            if fc.name == "get_last_detections":
                 frame_index = fc.args["frame_idx"]
                 labels = set(fc.args["labels"])
                 frame_cache = self._last_detections.get(frame_index, {})
                 detections = [
                     frame_cache[label] for label in labels if label in frame_cache
                 ]
+                self.console.plog(detections, title="Retrieved Cached Detections")
                 fc_responses.append(
                     types.FunctionResponse(
                         id=fc.id,
@@ -461,17 +417,17 @@ class GeminiLiveAgent:
                         types.FunctionResponse(
                             id=fc.id,
                             name=fc.name,
-                            response={
-                                "error": "No current frame set. Please select a frame first."
-                            },
+                            response={"detections": {}},
                         )
                     )
+                    error_msg = "No current frame set. Please select a frame first."
+                    self.console.error(RuntimeError(error_msg), error_msg)
                     continue
 
                 # Get current frame data
                 user_prompt = fc.args.get("user_prompt", "")
-                subset_mode = fc.args.get("subset_mode", False)
-                cache_key = (self.current_frame_idx, subset_mode, user_prompt)
+                detection_mode = fc.args.get("detection_mode", None)
+                cache_key = (self.current_frame_idx, detection_mode, user_prompt)
                 frame = self.dataset[self.current_frame_idx]
                 # reuse cached detections if identical request
                 if cache_key in self._detection_cache:
@@ -481,19 +437,27 @@ class GeminiLiveAgent:
                     succ = False
                     last_exc = None
                     # Attempt detection up to N times
-                    for _ in range(self.config.num_detseg_attemts):
+                    for _ in range(self.config.num_detseg_attempts):
                         try:
                             detections = await asyncio.to_thread(
                                 self.aabb_detector.run_aabb_detection,
                                 frame,
                                 user_prompt,
-                                subset_mode=subset_mode,
+                                detection_mode=detection_mode,
                             )
+                            if detections is None or len(detections) == 0:
+                                self.console.error(
+                                    RuntimeError("AABB detection returned no results")
+                                )
+                                continue
                             succ = True
                             break
                         except Exception as e:
                             last_exc = e
-                            self.console.error(f"AABB detection attempt failed: {e}")
+                            self.console.error(e, "AABB detection attempt failed")
+                            self.console.plog(
+                                detections, title="Detection Attempt Failed"
+                            )
                     if succ:
                         # cache the results
                         self._detection_cache[cache_key] = detections
@@ -505,15 +469,16 @@ class GeminiLiveAgent:
                     assert isinstance(
                         detections, AABBDetections
                     ), f"Expected AABBDetections, got {type(detections)}"
-                    response_payload = {"detections": detections.to_list_dict()}
-                    # initialize per-frame cache
+
+                    # Use the to_dict() method to get dictionary for tool response
+                    detections_dict = detections.to_dict()
+
+                    # Return dictionary format as requested by user
+                    response_payload = {"detections": list(detections_dict.values())}
+
+                    # initialize per-frame cache using dictionary structure for efficient lookup
                     if self.current_frame_idx is not None:
-                        self._last_detections[self.current_frame_idx] = {}
-                        for det in response_payload["detections"]:
-                            # det is already JSON-serializable dict
-                            self._last_detections[self.current_frame_idx][
-                                det["label"]
-                            ] = det
+                        self._last_detections[self.current_frame_idx] = detections_dict
 
                     # Only emit to UI thread if this is a real tool call (not from code execution)
                     if not return_no_send and self.current_frame_idx is not None:
@@ -524,9 +489,11 @@ class GeminiLiveAgent:
                             )
                         )
                 else:
-                    response_payload = {
-                        "error": f"run_aabb_detection failed after {self.config.num_detseg_attemts} attempts: {last_exc}"
-                    }
+                    # For error cases, return empty detections dictionary
+                    response_payload = {"detections": {}}
+                    if self.config.is_debug:
+                        error_msg = f"run_aabb_detection failed after {self.config.num_detseg_attempts} attempts"
+                        self.console.error(last_exc, error_msg)
 
                 # Send exactly one FunctionResponse and exit
                 fc_responses.append(
@@ -542,7 +509,13 @@ class GeminiLiveAgent:
         else:
             # Send the function response back to the model
             if self.session:
-                await self.session.send_tool_response(function_responses=fc_responses)
+                try:
+                    await self.session.send_tool_response(
+                        function_responses=fc_responses
+                    )
+                except Exception as e:
+                    self.console.error(e, "Failed to send tool response")
+                    self.console.plog(fc_responses, title="Tool Responses")
             return None
 
     # Audio handling methods (for voice mode)
@@ -655,5 +628,42 @@ class GeminiLiveAgent:
 
     def update_aabb_detector(self, model_name: str = "gemini-2.5-flash-preview-05-20"):
         """Create an AABB detector with the specified model name."""
-        self.config.aabb_detseg.model_name = model_name
-        self.aabb_detector = self.config.aabb_detseg.setup_target()
+        self.config.gemini_aabb_detseg.model_name = model_name
+        self.aabb_detector = self.config.gemini_aabb_detseg.setup_target()
+
+
+### DEPRECATED
+# async def _handle_tool_call(
+#     self, tool_call: types.LiveServerToolCall, return_no_send: bool = False
+# ) -> Optional[types.FunctionResponse]:
+#     """Handle tool calls from the model."""
+#     self.console.log(f"[TOOL CALL] Received function call")
+#     self.console.plog(tool_call, title="Tool Call Details")
+
+#     fc_responses: list[types.FunctionResponse] = []
+#     for fc in tool_call.function_calls:
+#         # DEPRECATED
+#         #  # Handle overview of all cached detections
+#         # if fc.name == "list_all_detections":
+#         #     # Build overview: frame_idx -> list of labels
+#         #     overview = {
+#         #         frame_idx: list(label_dict.keys())
+#         #         for frame_idx, label_dict in self._last_detections.items()
+#         #     }
+#         #     if self.config.is_debug:
+#         #         self.console.plog(
+#         #             {
+#         #                 "list_all_detections": overview,
+#         #                 "num_frames": len(overview),
+#         #                 "num_labels": sum(
+#         #                     len(labels) for labels in overview.values()
+#         #                 ),
+#         #             }
+#         #         )
+#         #     fc_responses.append(
+#         #         types.FunctionResponse(
+#         #             id=fc.id,
+#         #             name=fc.name,
+#         #             response={"overview": overview},
+#         #         )
+#         #     )

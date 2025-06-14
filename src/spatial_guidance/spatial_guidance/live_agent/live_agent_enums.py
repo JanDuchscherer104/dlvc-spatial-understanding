@@ -17,18 +17,22 @@ class DirectionalStyle(Enum):
     def examples(self):
         q1 = "Where is the trash can?"
         q2 = "Were is the next traffic light?"
+        q3 = "How do I get to the door?"
         return {
             DirectionalStyle.CLOCK_FACE: [
                 f'Q: "{q1}"\nA: "The trash can is 2.5 meters away at 3 o\'clock."',
                 f'Q: "{q2}"\nA: "There are two traffic lights, one at 1 o\'clock, 3.2 meters away, and another at 5 o\'clock, 1.5 meters away."',
+                f"Q: \"{q3}\"\nA: \"To reach the door at 11 o'clock, 4.2 meters away, walk straight ahead. There's a chair at 10 o'clock, 2.1 meters away that you'll need to walk around to your right.\"",
             ],
             DirectionalStyle.CARTESIAN: [
                 f'Q: "{q1}"\nA: "The trash can is 2.5 meters to your right and 1.0 meters ahead."',
                 f'Q: "{q2}"\nA: "There are two traffic lights, one 6.2 meters to your right and 8.5 meters ahead, and another 4.5 meters to your left and 2.0 meters ahead."',
+                f'Q: "{q3}"\nA: "To reach the door 1.5 meters to your left and 4.0 meters ahead, walk forward and slightly left. Watch out for a chair 2.0 meters to your left and 2.1 meters ahead that may block your path."',
             ],
             DirectionalStyle.DEGREES: [
                 f'Q: "{q1}"\nA: "The trash can is 20 degrees left at 2.5 m."',
                 f'Q: "{q2}"\nA: "There are two traffic lights, one at 30 degrees right and 5 meters ahead, and another at 65 degrees left at a distance of 3.2 meters."',
+                f'Q: "{q3}"\nA: "To reach the door at 330 degrees (30 degrees left), 4.2 meters away, walk forward and turn slightly left. Avoid the chair at 45 degrees, 2.1 meters away."',
             ],
         }[self]
 

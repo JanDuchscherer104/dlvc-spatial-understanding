@@ -15,9 +15,7 @@ class LiveAgentTools(BaseConfig):
             name="run_aabb_detection",
             description=(
                 "Detects objects in RGB-D images and computes their 3D spatial properties "
-                "for navigation assistance. Always specify detection_mode based on the query: "
-                "use 'subset' for specific objects, 'hazards' for safety checks, "
-                "'navigation_landmarks' for wayfinding aids."
+                "for navigation assistance."
             ),
             parameters=Schema(
                 type="OBJECT",
@@ -40,7 +38,8 @@ class LiveAgentTools(BaseConfig):
                             "path_description",
                         ],
                         description=(
-                            "REQUIRED. Detection mode: "
+                            "REQUIRED. Always specify detection_mode based on the query: "
+                            "Detection mode: "
                             "'subset': detect specific objects mentioned in user_prompt (use for queries like 'where is X?'), "
                             "'hazards': find dangerous objects and obstacles for safety assessment, "
                             "'navigation_landmarks': find doors, stairs, signs, crossings, directional markers for wayfinding, "
@@ -72,6 +71,10 @@ When the user asks for path descriptions to reach a destination (e.g., "How do I
                                     type="STRING",
                                     description="Unique human-readable object name (e.g., 'red parked car', 'wooden stairs')",
                                 ),
+                                "frame_idx": Schema(
+                                    type="INTEGER",
+                                    description="Frame index of the detection",
+                                ),
                                 "bbox": Schema(
                                     type="ARRAY",
                                     description="Bounding box [y0, x0, y1, x1], normalized to [0,1000]",
@@ -98,13 +101,20 @@ When the user asks for path descriptions to reach a destination (e.g., "How do I
                                     type="NUMBER",
                                     description="Angle in degrees from camera's optical axis (0=straight ahead, 90=left, -90=right)",
                                 ),
-                                "height_3d": Schema(
+                                "center_height_3d": Schema(
                                     type="NUMBER",
-                                    description="Height above ground in meters. If the user asks for the height of an object (e.g. 'What's the height of the blue sign?') ",
+                                    description="Height of 'center_point_3d' above ground in meters. If the user asks for the height of an object (e.g. 'What's the height of the blue sign?') ",
                                     title="Height",
                                 ),
                             },
-                            required=["label", "bbox"],
+                            required=[
+                                "label",
+                                "bbox",
+                                "center_point_3d",
+                                "depth",
+                                "rotation_clock",
+                                "rotation_deg",
+                            ],
                         ),
                     )
                 },
@@ -116,7 +126,11 @@ When the user asks for path descriptions to reach a destination (e.g., "How do I
     get_last_detections: FunctionDeclaration = Field(
         default_factory=lambda: FunctionDeclaration(
             name="get_last_detections",
-            description="Return cached detections for this frame so the model can avoid re-running detection.",
+            # description="Return cached detections for this frame so the model can avoid re-running detection.",
+            description=(
+                "Return cached detections from *frame_idx* transformed into the current ego frame."
+                "*Always* use this tool, when you have alreay detected the relevant objects. This will work even if the objects are not visible anymore! If you have not detected the objects yet, use the `run_aabb_detection` tool instead."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -131,6 +145,32 @@ When the user asks for path descriptions to reach a destination (e.g., "How do I
             response=None,  # Same as run_aabb_detection response
         )
     )
+
+    # get_last_detection_keys: FunctionDeclaration = Field(
+    #     default_factory=lambda: FunctionDeclaration(
+    #         name="get_last_detection_keys",
+    #         description="Return all cached detection keys (frame index and label) from previous detections. Use this when you are not sure which objects are cached.",
+    #         parameters=Schema(type="OBJECT", properties={}, required=[]),
+    #         response=Schema(
+    #             type="OBJECT",
+    #             properties={
+    #                 "keys": Schema(
+    #                     type="ARRAY",
+    #                     description="List of cached detection keys.",
+    #                     items=Schema(
+    #                         type="OBJECT",
+    #                         properties={
+    #                             "frame_idx": Schema(type="INTEGER"),
+    #                             "label": Schema(type="STRING"),
+    #                         },
+    #                         required=["frame_idx", "label"],
+    #                     ),
+    #                 )
+    #             },
+    #             required=["keys"],
+    #         ),
+    #     )
+    # )
 
     @field_validator("get_last_detections", mode="before")
     @classmethod

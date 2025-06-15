@@ -1,4 +1,5 @@
-from typing import Optional, Tuple
+from math import atan2, degrees
+from typing import Optional, Self, Tuple
 
 import numpy as np
 from PIL.Image import Image
@@ -16,6 +17,7 @@ class PipelineIn(DataModel):
 class DatasetOut(DataModel):
     """Input data for detection stage."""
 
+    idx: int
     rgb_image: Image
     depth_image: Image
     camera_intrinsics: np.ndarray
@@ -43,3 +45,34 @@ class DatasetOut(DataModel):
     - normal: 3D unit vector representing the plane normal
     - d: scalar distance parameter
     """
+
+    def rel_move_description(
+        self,
+        other: "DatasetOut",
+        idx_self: int,
+        idx_other: int,
+    ) -> Optional[str]:
+        """
+        Describe the camera motion from *self* frame (idx_self) to *other*
+        (idx_other). Output: "moved X m, rotated +/- θ ° (CCW positive)".
+        """
+        if self.camera_pose is None or other.camera_pose is None:
+            return None
+
+        T_rel = other.camera_pose @ np.linalg.inv(self.camera_pose)
+
+        # Extract rotation and translation
+        R_rel = T_rel[:3, :3]
+        t_rel = T_rel[:3, 3]
+
+        distance = float(np.linalg.norm(t_rel))
+        distance = round(distance, 2)
+
+        yaw_rad = atan2(-R_rel[2, 0], R_rel[0, 0])
+        yaw_deg = round(degrees(yaw_rad), 1)
+
+        return (
+            f"Updated frame {idx_self} to {idx_other}: "
+            f"moved {distance:.2f} m, rotated {yaw_deg:+.1f}° "
+            f"({'ccw / left' if yaw_deg > 0 else 'cw / right'})"
+        )

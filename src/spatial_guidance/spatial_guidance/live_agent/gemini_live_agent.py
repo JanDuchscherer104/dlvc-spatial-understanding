@@ -6,12 +6,18 @@ from pathlib import Path
 from queue import Empty, Queue
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
+import numpy as np
 import pyaudio
 from google import genai
 from google.genai import types
 from google.genai.live import AsyncSession
 
-from ..data_contracts.aabb_segmentation import AABBDetections
+from spatial_guidance.data_contracts.aabb_segmentation import (
+    compute_rotation_from_3d_position,
+)
+from spatial_guidance.data_contracts.dataset import DatasetOut
+
+from ..data_contracts.aabb_segmentation import AABBDetection, AABBDetections
 from ..utils import Console, PathConfig
 from .actor_protocols import (
     AskCmd,
@@ -72,6 +78,10 @@ class GeminiLiveAgent:
 
         # Setup dataset
         self.update_dataset(dataset_dir=dataset_dir, is_rotated=is_rotated)
+        self.last_frame_idx: Optional[int] = None
+        self.current_frame_idx: int = 0
+        self.current_frame: Optional[DatasetOut] = None
+
         self.update_interaction_mode()
 
         # Actor communication queues
@@ -82,8 +92,6 @@ class GeminiLiveAgent:
         self.actor_thread: Optional[threading.Thread] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.session: Optional[AsyncSession] = None
-        self.last_frame_idx: Optional[int] = None
-        self.current_frame_idx: int = 0
 
         # Audio setup
         self.audio_in_queue: Optional[asyncio.Queue[bytes]] = None
@@ -94,10 +102,8 @@ class GeminiLiveAgent:
         # Detection cache: maps (frame_idx, detection_mode, user_prompt) to AABBDetections
         self._detection_cache: dict[tuple[int, Optional[str], str], AABBDetections] = {}
 
-        # Now keyed by (frame_idx: dict[label: detections_json])
-        self._last_detections: dict[int, dict[str, dict]] = (
-            {}
-        )  # TODO: switch to dict[tuple[int, str], dict] for (frame_idx, label) -> detection_json
+        # Detection cache: maps (frame_idx, label) -> detection_json dict
+        self._last_detections: dict[tuple[int, str], dict] = {}
 
         # Buffer that accumulates streamed text chunks for the current assistant
         # turn.  Flushed when we receive `generation_complete`/`turn_complete`
@@ -368,16 +374,39 @@ class GeminiLiveAgent:
             await self.session.send_realtime_input(
                 media=frame.rgb_image,
             )
-            await asyncio.sleep(0.2)  # Give some time for the image to be processed
-            await self.session.send_realtime_input(
-                text=f"<SYSTEM>[NEW FRAME] Updated frame_idx to '{frame_idx}'. You are seeing what the user sees.</SYSTEM>\n"
-            )
+            await asyncio.sleep(0.1)
+
+            frame_change_info = f"<SYSTEM>[NEW FRAME] Updated frame_idx to '{frame_idx}'. You are seeing what the user sees.</SYSTEM>"
+            if self.current_frame is not None:
+                try:
+                    # Describe the relative movement from the last frame to the current one
+                    rel_move = self.current_frame.rel_move_description(
+                        other=frame,
+                        idx_self=self.current_frame_idx,
+                        idx_other=frame_idx,
+                    )
+                except Exception as e:
+                    self.console.error(
+                        e, "Error describing relative movement between frames"
+                    )
+                else:
+                    frame_change_info = (
+                        frame_change_info.replace("</SYSTEM>", "") + rel_move
+                    )
+
+            self.console.log(frame_change_info)
+            await self.session.send_realtime_input(text=frame_change_info)
+            if self._last_detections:
+                await self.session.send_realtime_input(
+                    text=f"<System>Cached detections: {self._last_detections.keys()} </System>"
+                )
             # rovide a concise description of all relevant objects in the scene to aquire an improved understanding of the environment. This will improve your capacities to answer potential user queries about the scene."
             #  If you see any potential hazards, call 'warn_user' TODO
 
             # self._phase = ...
             # TODO: The model should reply with a response if and only if it sees any potential hazards in the frame and warn the user about them!
             self.current_frame_idx = frame_idx
+            self.current_frame = frame
             self.last_frame_idx = frame_idx
 
             self.console.log(f"Sent frame {frame_idx} context to Live API")
@@ -396,17 +425,59 @@ class GeminiLiveAgent:
         for fc in tool_call.function_calls:
             if fc.name == "get_last_detections":
                 frame_index = fc.args["frame_idx"]
-                labels = set(fc.args["labels"])
-                frame_cache = self._last_detections.get(frame_index, {})
-                detections = [
-                    frame_cache[label] for label in labels if label in frame_cache
-                ]
-                self.console.plog(detections, title="Retrieved Cached Detections")
+                labels = fc.args["labels"]
+                # Prepare poses for transform
+                pose_prev = self.dataset[frame_index].camera_pose
+                pose_curr = (
+                    self.current_frame.camera_pose if self.current_frame else None
+                )
+
+                if self.config.is_debug:
+                    self.console.log(
+                        f"Transform debug: frame_index={frame_index}, current_frame_idx={self.current_frame_idx}"
+                    )
+                    self.console.log(
+                        f"Pose prev shape: {pose_prev.shape if pose_prev is not None else None}"
+                    )
+                    self.console.log(
+                        f"Pose curr shape: {pose_curr.shape if pose_curr is not None else None}"
+                    )
+
+                det_list = []
+                for lbl in labels:
+                    key = (frame_index, lbl)
+                    if key not in self._last_detections:
+                        continue
+                    raw_det = self._last_detections[key]
+
+                    # Only transform if we have both poses and they're different frames
+                    if frame_index != self.current_frame_idx:
+                        det_tr = AABBDetections.transform_cached_det(
+                            raw_det,
+                            pose_from=pose_prev,
+                            pose_to=pose_curr,
+                            console=self.console,
+                        )
+
+                        if self.config.is_debug:
+                            self.console.log(
+                                f"Transformed detection {lbl}: {raw_det.get('center_point_3d')} -> {det_tr.get('center_point_3d')}"
+                            )
+                    else:
+                        det_tr = raw_det.copy()  # No transformation needed
+
+                    if det_tr is not None:
+                        det_list.append(det_tr)
+                    else:
+                        self.console.warn(
+                            f"Failed to transform detection for label '{lbl}' in frame {frame_index}"
+                        )
+                self.console.plog(det_list, title="Cached detections (transformed)")
                 fc_responses.append(
                     types.FunctionResponse(
                         id=fc.id,
                         name=fc.name,
-                        response={"detections": detections},
+                        response={"detections": det_list},
                     )
                 )
 
@@ -472,13 +543,23 @@ class GeminiLiveAgent:
 
                     # Use the to_dict() method to get dictionary for tool response
                     detections_dict = detections.to_dict()
+                    # detections_dict["frame_idx"] = self.current_frame_idx
+                    # Add frame index to each detection
+                    for det in detections_dict.values():
+                        det["frame_idx"] = self.current_frame_idx
 
                     # Return dictionary format as requested by user
                     response_payload = {"detections": list(detections_dict.values())}
 
-                    # initialize per-frame cache using dictionary structure for efficient lookup
+                    # cache each detection under (frame_idx, label)
                     if self.current_frame_idx is not None:
-                        self._last_detections[self.current_frame_idx] = detections_dict
+                        for lbl, det_json in detections_dict.items():
+                            self._last_detections[(self.current_frame_idx, lbl)] = (
+                                det_json
+                            )
+                        self.console.plog(
+                            self._last_detections.keys(), title="Last Detections Cache"
+                        )
 
                     # Only emit to UI thread if this is a real tool call (not from code execution)
                     if not return_no_send and self.current_frame_idx is not None:
@@ -630,40 +711,3 @@ class GeminiLiveAgent:
         """Create an AABB detector with the specified model name."""
         self.config.gemini_aabb_detseg.model_name = model_name
         self.aabb_detector = self.config.gemini_aabb_detseg.setup_target()
-
-
-### DEPRECATED
-# async def _handle_tool_call(
-#     self, tool_call: types.LiveServerToolCall, return_no_send: bool = False
-# ) -> Optional[types.FunctionResponse]:
-#     """Handle tool calls from the model."""
-#     self.console.log(f"[TOOL CALL] Received function call")
-#     self.console.plog(tool_call, title="Tool Call Details")
-
-#     fc_responses: list[types.FunctionResponse] = []
-#     for fc in tool_call.function_calls:
-#         # DEPRECATED
-#         #  # Handle overview of all cached detections
-#         # if fc.name == "list_all_detections":
-#         #     # Build overview: frame_idx -> list of labels
-#         #     overview = {
-#         #         frame_idx: list(label_dict.keys())
-#         #         for frame_idx, label_dict in self._last_detections.items()
-#         #     }
-#         #     if self.config.is_debug:
-#         #         self.console.plog(
-#         #             {
-#         #                 "list_all_detections": overview,
-#         #                 "num_frames": len(overview),
-#         #                 "num_labels": sum(
-#         #                     len(labels) for labels in overview.values()
-#         #                 ),
-#         #             }
-#         #         )
-#         #     fc_responses.append(
-#         #         types.FunctionResponse(
-#         #             id=fc.id,
-#         #             name=fc.name,
-#         #             response={"overview": overview},
-#         #         )
-#         #     )

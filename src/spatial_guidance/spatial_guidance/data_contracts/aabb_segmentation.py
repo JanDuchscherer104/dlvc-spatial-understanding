@@ -191,22 +191,8 @@ def compute_rotation_from_3d_position(
     center_3d: Optional[List[float]],
 ) -> Tuple[Optional[float], Optional[int]]:
     """
-    Compute rotation information from 3D position in camera coordinates for BEV representation.
-
-    The rotation represents the angle between the forward axis (z-axis) in a Bird's Eye View (BEV)
-    perspective, computed from metric camera coordinates in the x-z plane.
-
-    Args:
-        center_3d: 3D position [x, y, z] in camera frame where:
-                  - x: right/left (positive right, negative left) → BEV x-axis
-                  - y: up/down (positive up, negative down) → BEV height (not used in rotation)
-                  - z: forward/backward (positive forward) → BEV y-axis (forward direction)
-
-    Returns:
-        Tuple of (rotation_deg, rotation_clock) where:
-        - rotation_deg: BEV rotation angle in degrees from z-axis (forward) in x-z plane
-                       (0° = straight ahead/12 o'clock, measured clockwise from z-axis)
-        - rotation_clock: Single 12-hour clock position (1-12) for BEV orientation
+    Compute BEV rotation angle and clock position from a 3D point in camera coords.
+    Handles both front (z>0) and back (z<=0) cases.
     """
     try:
         if center_3d is None or len(center_3d) != 3:
@@ -214,28 +200,25 @@ def compute_rotation_from_3d_position(
 
         x_cam, y_cam, z_cam = center_3d
 
-        # Check if object is behind camera (negative z)
+        # --- Behind-camera case: reflect bearing by +180°
         if z_cam <= 0:
-            return None, None
+            bearing_rad = math.atan2(x_cam, abs(z_cam))
+            bearing_deg = math.degrees(bearing_rad)
+            rotation_deg = (bearing_deg + 180) % 360
 
-        # Calculate BEV bearing angle in x-z plane using atan2(x, z)
-        # This computes the angle from the forward z-axis to the object position
-        # In BEV: z-axis → forward (y in BEV), x-axis → lateral (x in BEV)
-        # atan2(x, z) returns angle in range [-π, π] from z-axis (forward direction)
+            # Convert to 12-hour clock
+            hour_step = 30.0
+            clock_hour = round(rotation_deg / hour_step) % 12
+            if clock_hour == 0:
+                clock_hour = 12
+
+            return rotation_deg, clock_hour
+
+        # --- Front-camera case (original logic) ---
         bearing_rad = math.atan2(x_cam, z_cam)
         bearing_deg = math.degrees(bearing_rad)
+        rotation_deg = bearing_deg if bearing_deg >= 0 else 360 + bearing_deg
 
-        # Convert to 0-360 degree range for BEV with 0° = forward (12 o'clock)
-        # Positive x (right) gives positive angles (1-6 o'clock in BEV)
-        # Negative x (left) gives negative angles, wrapped to (7-11 o'clock in BEV)
-        if bearing_deg < 0:
-            rotation_deg = 360 + bearing_deg
-        else:
-            rotation_deg = bearing_deg
-
-        # Convert to 12-hour clock position for BEV orientation
-        # Each hour represents 30 degrees (360° / 12 hours)
-        # 12 o'clock = 0° = forward (z-axis), measured clockwise in BEV
         hour_step = 30.0
         clock_hour = round(rotation_deg / hour_step) % 12
         if clock_hour == 0:
@@ -382,8 +365,10 @@ class AABBDetection(DataModel):
     """Median depth (50th percentile) of the object in the scene in meters"""
     max_depth: Optional[float] = None
     """Maximum depth (90th percentile) of the object in the scene in meters"""
-    height_3d: Optional[float] = None
-    """Height of the object in the scene in meters, computed from the ground plane"""
+    center_height_3d: Optional[float] = None
+    """Height of the object's center in the scene in meters, computed from the ground plane"""
+    max_height_3d: Optional[float] = None
+    """Maximum height of the object in the scene in meters, computed from the ground plane"""
 
     rotation_deg: Optional[float] = None
     """BEV rotation angle in degrees from forward z-axis in x-z plane. 0° = straight ahead (12 o'clock), computed from metric camera coordinates. Measured clockwise in Bird's Eye View perspective."""
@@ -576,9 +561,9 @@ class AABBDetection(DataModel):
             # Height from ground‑plane
             if ground_plane is not None and center_for_height is not None:
                 n, d = ground_plane
-                self.height_3d = float(np.dot(n, center_for_height) + d)
+                self.center_height_3d = float(np.dot(n, center_for_height) + d)
             else:
-                self.height_3d = None
+                self.center_height_3d = None
 
             self.processed_ = True
 
@@ -666,7 +651,8 @@ class AABBDetections(DataModel):
                 "depth": float(obj.med_depth or float("nan")),
                 "rotation_clock": int(obj.rotation_clock or float("nan")),
                 "rotation_deg": float(obj.rotation_deg or float("nan")),
-                "height_3d": float(obj.height_3d or float("nan")),
+                # "max_height_3d": float(obj.max_height_3d or float("nan")),
+                "center_height_3d": float(obj.center_height_3d or float("nan")),
             }
             detections_list.append(detection_dict)
 
@@ -740,7 +726,7 @@ class AABBDetections(DataModel):
                 "depth": float(obj.med_depth or float("nan")),
                 "rotation_clock": int(obj.rotation_clock or float("nan")),
                 "rotation_deg": float(obj.rotation_deg or float("nan")),
-                "height_3d": float(obj.height_3d or float("nan")),
+                "center_height_3d": float(obj.center_height_3d or float("nan")),
             }
             for label, obj in self.objects.items()
         }
@@ -755,3 +741,42 @@ class AABBDetections(DataModel):
         """Create AABBDetections from a list of detections."""
         objects_dict = {det.label: det for det in detections_list}
         return cls(objects=objects_dict)
+
+    @staticmethod
+    def transform_cached_det(
+        det_json: dict[str, Any],
+        pose_from: np.ndarray,
+        pose_to: np.ndarray,
+        console: Optional[Console] = None,
+    ) -> Optional[dict[str, Any]]:
+        """Return a copy of det_json with 3D fields expressed in pose_curr."""
+        if pose_from is None or pose_to is None:
+            return det_json.copy()
+
+        det = det_json.copy()
+        center = det.get("center_point_3d")
+        if center is not None and len(center) == 3:
+            try:
+                # TF to homogeneous coordinates
+                p_cam_from = np.array(center)
+                p_cam_from_h = np.append(p_cam_from, 1.0)
+
+                # p -> world -> current frame
+                p_cam_to_h = pose_to @ np.linalg.inv(pose_from) @ p_cam_from_h
+                p_cam_to = p_cam_to_h[:3]
+
+                det["center_point_3d"] = p_cam_to.tolist()
+                det["depth"] = float(np.linalg.norm(p_cam_to))
+                det["rotation_deg"], det["rotation_clock"] = (
+                    compute_rotation_from_3d_position(p_cam_to.tolist())
+                )
+
+            except Exception as e:
+                if console:
+                    console.error(
+                        e,
+                        f"Error transforming detection: {det.get('label', 'unknown')}",
+                    )
+                return None
+
+        return det

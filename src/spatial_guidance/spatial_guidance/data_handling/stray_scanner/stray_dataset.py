@@ -54,7 +54,7 @@ class StrayDatasetConfig(BaseConfig["StrayDataset"]):
     is_rotated: bool = False
     """Whether the frames are rotated."""
 
-    auto_scale_poses: bool = True
+    auto_scale_poses: bool = False
     """Whether to auto-scale poses to fit in a unit cube."""
 
     confidence_threshold: int = 1  # TODO: add filtering
@@ -82,6 +82,11 @@ class StrayDatasetConfig(BaseConfig["StrayDataset"]):
     """Whether to detect ground plane in world coordinates (True) or camera coordinates (False)."""
 
     def setup_target(self) -> "StrayDataset":
+
+        if self.auto_scale_poses:
+            Console.with_prefix(self.__class__.__name__, "_setup_target").warn(
+                "Auto-scaling poses is enabled! This does not make sense for GeminiLiveAgent!"
+            )
         return self.target(self)
 
 
@@ -104,7 +109,12 @@ class StrayDataset:
         self._rgb_frames: Optional[List[Path]] = None
         self._depth_frames: Optional[List[Path]] = None
 
+        self._ds_out_cache: dict[int, DatasetOut] = {}
+
     def __getitem__(self, idx: int) -> DatasetOut:
+        if idx in self._ds_out_cache:
+            return self._ds_out_cache[idx]
+
         rgb_image = Image.fromarray(self.get_rgb(idx))
         # Use mode="F" for 32-bit float grayscale to preserve depth information
         depth_array = self.get_depth(idx)
@@ -198,13 +208,16 @@ class StrayDataset:
                 )
                 ground_plane = None
 
-        return DatasetOut(
+        ds_out = DatasetOut(
+            idx=idx,
             rgb_image=rgb_image,
             depth_image=depth_image,
             camera_intrinsics=camera_intrinsics.copy(),
             camera_pose=camera_pose.copy(),
             ground_plane=ground_plane,
         )
+        self._ds_out_cache.update({idx: ds_out})
+        return ds_out
 
     def get_rgb_dimensions(self) -> Tuple[int, int]:
         """Get the dimensions of RGB images (height, width).
@@ -275,7 +288,7 @@ class StrayDataset:
             idx: Optional index to get a specific pose. If None, returns all poses.
         """
         if self._poses_cache is not None:
-            return self._poses_cache
+            return [self._poses_cache[idx]] if idx is not None else self._poses_cache
 
         poses = self.parser.get_poses()
 
@@ -297,6 +310,9 @@ class StrayDataset:
         Returns:
             Scaled camera pose matrices.
         """
+        Console.with_prefix(self.__class__.__name__, "_scale_poses").warn(
+            "Scaling poses does *not* make sense for this application! Only use it if normalization is necessary, e.g. for NN inputs or plotting!"
+        )
         # Create a copy to avoid modifying the original poses
         poses = [pose.copy() for pose in poses]
 

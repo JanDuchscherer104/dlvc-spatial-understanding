@@ -390,16 +390,32 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
             else:
                 st.session_state.det_nav_key_idx = None
 
-        # Ensure the index is valid
-        if st.session_state.det_nav_key_idx is not None and detection_keys:
-            if st.session_state.det_nav_key_idx >= len(detection_keys):
+        # Ensure the index is valid and handle case where detection list has changed
+        if detection_keys:
+            if st.session_state.det_nav_key_idx is None:
+                # If we had no detections before but now we do, initialize to current frame or 0
+                current_det_key = f"det_{frame_idx}"
+                if current_det_key in detection_keys:
+                    st.session_state.det_nav_key_idx = detection_keys.index(
+                        current_det_key
+                    )
+                else:
+                    st.session_state.det_nav_key_idx = 0
+            elif st.session_state.det_nav_key_idx >= len(detection_keys):
                 st.session_state.det_nav_key_idx = len(detection_keys) - 1
             elif st.session_state.det_nav_key_idx < 0:
                 st.session_state.det_nav_key_idx = 0
+        else:
+            # No detections available
+            st.session_state.det_nav_key_idx = None
 
         # Display detection navigation info
         if detection_keys:
-            current_idx = st.session_state.det_nav_key_idx or 0
+            current_idx = (
+                st.session_state.det_nav_key_idx
+                if st.session_state.det_nav_key_idx is not None
+                else 0
+            )
             current_key = detection_keys[current_idx]
             current_frame_num = int(current_key.split("_")[1])
 
@@ -416,7 +432,11 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
                 key=f"prev_det_{frame_idx}",
                 disabled=not detection_keys,
             ):
-                if detection_keys and st.session_state.det_nav_key_idx > 0:
+                if (
+                    detection_keys
+                    and st.session_state.det_nav_key_idx is not None
+                    and st.session_state.det_nav_key_idx > 0
+                ):
                     st.session_state.det_nav_key_idx -= 1
                     st.rerun()
 

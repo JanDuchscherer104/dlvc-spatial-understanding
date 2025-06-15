@@ -55,9 +55,9 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
         default_factory=lambda: types.LiveConnectConfig(
             response_modalities=[types.Modality.TEXT, types.Modality.IMAGE],
             # Low temperature minimises drift; modest nucleus & k keep phrasing varied without schema errors.
-            temperature=0.15,
+            temperature=0.1,
             top_p=0.9,
-            top_k=40,
+            top_k=64,
             system_instruction=None,
             tools=None,
         )

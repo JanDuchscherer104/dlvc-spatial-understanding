@@ -1,6 +1,7 @@
 from typing import Annotated, Any, List, Literal, Optional, Tuple, Type, Union
 
 import numpy as np
+from click import Option
 from google import genai
 from google.genai import types
 from PIL import Image as PILImage
@@ -29,6 +30,8 @@ class GeminiAABBDetSegConfig(BaseConfig["GeminiAABBDetSeg"]):
 
     mask_confidence_threshold: float = Field(0.45, gt=0.0, le=1.0)
     """Confidence threshold for the segmentation mask to be considered valid."""
+    resize: Optional[Tuple[int, int]] = (640, 640)
+    """Resize the input image to this size before processing. If None, no resizing is done."""
 
     visualize_rgb: bool = False
     """Whether to visualize RGB image with detection results."""
@@ -282,6 +285,10 @@ class GeminiAABBDetSeg:
                 f"Running Gemini detection with model: {self.config.model_name}"
             )
 
+            if self.config.resize:
+                rgb_image = rgb_image.copy()
+                rgb_image.thumbnail(self.config.resize, PILImage.Resampling.LANCZOS)
+
             contents = [
                 rgb_image,
             ]
@@ -301,6 +308,7 @@ class GeminiAABBDetSeg:
                 config=self.config.get_generation_config(),
             )
             parsed_detections: list[RawAABBDetSeg]
+            raw_json_output: Optional[str] = None
             if response.parsed is not None:
                 parsed_detections_raw = response.parsed
                 parsed_detections = [
@@ -326,7 +334,7 @@ class GeminiAABBDetSeg:
 
             if not parsed_detections:
                 CONSOLE.warn(
-                    f"Gemini returned no parsable results after _parse_json. Original text was: {raw_json_output[:200] if response.text else 'None'}"
+                    f"Gemini returned no parsable results after _parse_json. Original text was: {response.text[:200] if response.text else 'None'}"
                 )
                 return []
 

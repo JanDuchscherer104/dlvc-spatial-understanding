@@ -43,7 +43,9 @@ dataset_output = ds.entrypoint(pipeline_input)
 result = gemini.entrypoint(dataset_output)
 
 
-CONSOLE.plog(result)  # Log the full result object for inspection
+CONSOLE.plog(
+    result, title="Detection Result Object"
+)  # Log the full result object for inspection
 
 # Display the generated visualizations
 if result.visualization_rgb:

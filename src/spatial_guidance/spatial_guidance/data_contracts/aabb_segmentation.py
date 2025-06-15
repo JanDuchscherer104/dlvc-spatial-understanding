@@ -9,9 +9,13 @@ import numpy as np
 from PIL import Image as PILImage
 from PIL.Image import Image
 from pydantic import Field, ValidationInfo, field_validator
+from scipy.ndimage import binary_erosion
 
 from ..utils import Console
 from .core import DataModel
+
+# TODO: binary_erosion on binary mask (use np.ones((3,3)) as structuring element)
+# TODO: unify depth computation (one uses percentile, another uses nearest_nonzero)
 
 
 def pixel_to_camera_coordinates(

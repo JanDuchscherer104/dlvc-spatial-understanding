@@ -6,8 +6,12 @@
   - **`StrayScannerPaths`**: Centralizes and validates all dataset paths (RGB, depth, odometry, IMU, etc.), ensuring robust file access and fallback mechanisms.
   - **`StrayScannerDataParser`**: Loads and parses all relevant StrayScanner data (RGB frames, depth maps, camera intrinsics, poses, IMU), providing a unified interface for frame-wise access and supporting both original and rotated images. This class is heavily inspired by the StrayVisualizer.
   - **`StrayDataset`**: Wraps the parser and exposes the dataset as a pipeline-ready object, handling scaling, pose normalization, and confidence filtering.
+  - Added a Jupyter notebook that demonstrates parsing a sample StrayScanner recording.
 - **Detection Pipeline Integration**
   - **`GeminiVLMDetection`**: Pipeline stage for running Google Gemini VLM on input frames, using structured prompts and output parsing to extract actionable scene information for navigation.
+- **Development Utilities**
+  - Introduced a pretty logging console and wrote initial coding guidelines.
+  - Created an early ZenML pipeline example to validate the stage-based approach.
 - **Prompt Engineering & Output Schema**
   - Integrated LangChain for robust output parsing and prompt management, iterating on system prompts to improve detection quality and structure.
 
@@ -27,10 +31,10 @@
 - **Complex Prompts & Output Schemas**:
   - Output quality seemed strongly correlated with complexity output schema and prompt structure, here a good deal of prompt engineering is required to optimize the model's performance.
 
-  ![Gemini Detections](figures/gemini_detections.png)
+  ![Gemini Detections](figures/gemini_detections.png){fig-cap="Detection differences at various resolutions"}
   *Left & Center: Same resolution (1440×1920) but different detection results, showing model stochasticity. Right: Lower resolution (1024×1024)*
 
-  ![Gemini Detections with Depth](figures/gemini_detections_w_depth.png)
+  ![Gemini Detections with Depth](figures/gemini_detections_w_depth.png){fig-cap="Detections overlaid on depth"}
   *Left: RGB view with bounding boxes and sampled points. Right: Depth map showing how points within AABBs often miss actual object surfaces, landing on background instead.*
 
 ### Time Spent

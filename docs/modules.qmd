@@ -1,0 +1,45 @@
+---
+title: "Package Overview"
+---
+
+This section describes the main modules and classes in the
+`spatial_guidance` Python package.
+See also the [Class Overview](classes.qmd) for a list of all classes.
+
+## `data_contracts`
+
+Defines Pydantic data models that structure detections and datasets.
+Key classes include `RawAABBDetSeg` for axis-aligned bounding boxes,
+`RawOBBDetection` for oriented boxes and `DatasetOut` for dataset
+metadata.
+
+## `data_handling`
+
+Utilities for loading datasets. `StrayDataset` wraps StrayScanner data
+and applies scaling and pose normalization.
+
+## `live_agent`
+
+An asynchronous actor that streams frames and user prompts to Gemini
+models. `GeminiLiveAgent` manages the event loop, audio streaming and
+response buffering. Commands and events are defined in
+`actor_protocols.py`.
+
+## `scene_understanding`
+
+Wrappers around the Gemini vision API for obtaining 2D/3D detections and
+scene descriptions from images.
+
+## `visualization`
+
+Helper classes for drawing detections on RGB/depth images using
+`matplotlib` and `PIL`.
+
+## `ui`
+
+A minimal Streamlit application to run the live agent from the browser.
+
+## `utils`
+
+Configuration, logging helpers and path handling utilities used
+throughout the code base.

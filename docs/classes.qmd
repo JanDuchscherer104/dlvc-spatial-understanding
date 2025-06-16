@@ -1,0 +1,52 @@
+---
+title: "Class Overview"
+---
+
+This page lists the main classes implemented in the `spatial_guidance` package.
+For brevity only the most important attributes are mentioned. See the
+[Diagrams](diagrams.qmd) page for relationships.
+
+## `data_contracts`
+
+- **`DataModel`** – base class with helpers for JSON schema generation and
+  structured output parsing.
+- **`RawAABBDetSeg`** – raw bounding box result returned by the Gemini model.
+- **`AABBDetection`** – processed detection with depth, rotation and mask data.
+- **`AABBDetections`** – collection of `AABBDetection` objects with
+  convenience methods.
+- **`RawOBBDetection`** – raw oriented 3‑D box output from Gemini.
+- **`OBBDetection`** – processed 3‑D bounding box with vertex computations.
+- **`OBBDetections`** – container holding many `OBBDetection` instances.
+- **`PipelineIn`** – input specification for dataset pipeline stages.
+- **`DatasetOut`** – RGB‑D frame with camera pose and intrinsics.
+
+## `data_handling`
+
+- **`StrayScannerPaths`** – resolves dataset file paths and validates the
+  dataset directory.
+- **`StrayScannerDataParser`** – loads images, depth maps and poses from a
+  StrayScanner dataset.
+- **`StrayDataset`** – high level dataset that returns `DatasetOut` items with
+  optional pose scaling.
+
+## `live_agent`
+
+- **`AskCmd`, `AudioCmd`, `SetFrameCmd`** – command messages sent to the agent
+  thread.
+- **`TextEvt`, `AudioEvt`, `DetectionsEvt`, `ErrorEvt`** – event messages
+  produced by the agent.
+- **`_ExecAPI`** – restricted API exposed to code execution snippets.
+- **`GeminiLiveAgent`** – coordinates frame streaming, Gemini interaction and
+  tool responses using an actor pattern.
+- **`GeminiLiveAgentConfig`** – Pydantic configuration for the live agent.
+- **`DirectionalStyle`, `DistanceStyle`, `GenState`, `InteractionMode`,
+  `OperationalMode`** – enums controlling response style and operation modes.
+
+## `scene_understanding`
+
+- **`GeminiAABBDetSeg`**, **`GeminiAABBDetSegConfig`** – 2‑D detection and
+  segmentation using Gemini with structured output.
+- **`GeminiOBBDet`**, **`GeminiOBBDetConfig`** – 3‑D oriented box detection.
+- **`GeminiSceneDescriptor`**, **`GeminiSceneDescriptorConfig`** – generates a
+  full scene description from RGB‑D data and detections.
+

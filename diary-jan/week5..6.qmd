@@ -4,10 +4,12 @@
 
 - **Pipeline & Stage Containerization**: Allow "easy" configuration of different Docker environments for each pipeline stage. All resulting images are pushed to a local or GHCR registry.
   - Implemented a [`DockerConfig`](https://gitlab.lrz.de/dlvc04-sose-25/dlvc-04-spatial-understanding/-/blob/main/src/spatial_guidance/spatial_guidance/pipeline/docker_config.py?ref_type=heads) in which the user can specify the base image, additional pip or apt packages, environment variables, build and run options.
+- Added Dockerfiles, an `env.yml` for conda setup and updated `requirements.txt`. A sample notebook demonstrates how to run the pipeline end‑to‑end.
 - **Read Paper [SpatialVLM: Endowing Vision-Language Models with Spatial Reasoning Capabilities](https://arxiv.org/abs/2401.12168)**:
     - Lifts 2D images to metric 3D point clouds via depth estimation.
     - Performs detection, segmentation and coordinate canonicalization of all objects in the scene to obtain ground truths for the spatial relationships between objects in the scene.
-    - Uses a VLM to answer questions about spatial relationships between objects in the scene, such as "How far is object [A] form object [B]?", where the ground truth is provided by the spatial graph of the scene.
+    - Uses a VLM to answer questions about spatial relationships between objects in the scene, such as "How far is object [A] from object [B]?", where the ground truth is provided by the spatial graph of the scene.
+    - The pipeline lifts 2‑D images to metric point clouds and canonicalizes object coordinates to build a consistent spatial graph.
   - Relevant features for our project:
     - For every object's point cloud, extracts the centroid, volume and pairwise distances.
     - Performs *canonical frame alignment* by determining a dominant plane in the scene (e.g., the ground plane) by using RANSAC and computing the new scene origin based on the camera pose's projection onto this plane.

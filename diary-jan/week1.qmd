@@ -3,6 +3,7 @@
 ### Tasks Worked On
 
 - **Gemini Exploration**: Get familiar with two example notebooks on how to use Gemini Spatial Understanding (Gemini 2.0 flash) via the Google API
+- **Repository Setup**: Initialized the project structure, added a template for the final report and slides, and started committing example notebooks and documentation updates.
 - **Reflection** upon possible project goals and directions, as well as architectures for the "full" pipeline.
   - How should the data look like at different stages of the pipeline?
   - Should we use LangChain?

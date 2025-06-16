@@ -1,0 +1,22 @@
+project:
+  type: website
+  output-dir: _output
+website:
+  title: "Spatial Guidance Docs"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: modules.qmd
+        text: API Overview
+      - href: classes.qmd
+        text: Classes
+      - href: theory.qmd
+        text: Theory
+      - href: diagrams.qmd
+        text: Diagrams
+      - href: roadmap.qmd
+        text: Roadmap
+format:
+  html:
+    theme: cosmo

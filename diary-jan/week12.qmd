@@ -1,0 +1,30 @@
+## Week 12 June 9 - June 13, 2025
+
+### Tasks Worked On
+- Implemented prototype live API with audio and image streaming (`gemini_live_agent` and `streamlit_app_live.py`).
+- Added an improved Streamlit chat interface for local testing.
+- Refactored the live agent into modular components with actor protocols and a finite-state machine.
+- Added proper tool-use handling so Gemini can execute snippets for tasks like speech output.
+- Updated data contracts and documentation; added diaries and generated Quarto pages.
+- Moved old experiments to `.deprecated` and cleaned the repository.
+- Added a placeholder `.env` file and removed the outdated `env.yml`; updated Poetry dependencies and TODO sections in the code base.
+- Added example frame data and updated `README.md` and `SETUP.md`.
+- Generated site documentation with Mermaid diagrams instead of PNGs.
+
+### Problems Encountered
+- Live API requests occasionally failed due to non-JSON serializable payloads.
+- Frequent refactoring made it difficult to keep tests synchronized.
+- Needed to replace binary diagrams with vector graphics for compatibility.
+
+### Plans for Next Week
+- Finalize the live agent API and polish documentation.
+- Evaluate Gemini 2.5 performance on real scenes.
+
+### Time Spent
+
+| Task | Time Spent |
+|--------------------------------------------|-----------|
+| Live API implementation & refactoring | 6 hours |
+| Documentation updates | 2 hours |
+| Cleanup & dependency management | 2 hours |
+| **Total** | **10 hours** |

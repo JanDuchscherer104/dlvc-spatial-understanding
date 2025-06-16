@@ -1,0 +1,35 @@
+---
+title: "Feature Roadmap"
+---
+
+The following lightweight improvements could greatly enhance the system.
+
+## Prompt optimisation
+
+* Consolidate `DirectionalStyle` and `DistanceStyle` into a single style
+  object so Gemini receives fewer instructions.
+* Provide sample question&answer pairs in the system prompt to guide the
+  model toward concise replies.
+* Encourage tool usage over code execution for simple queries and reuse
+  past detection results when possible.
+
+## Pipeline enhancements
+
+* Add a unified configuration file for dataset paths and API keys.
+* Implement caching for expensive API calls in `scene_understanding`.
+* Introduce automated evaluation scripts for detection accuracy.
+
+## UI and user experience
+
+* Expose response style switches in the Streamlit app.
+* Add keyboard shortcuts for starting/stopping the live agent.
+
+## Data handling
+
+* Improve depth/pose scaling heuristics in `StrayDataset`.
+* Support additional dataset formats beyond StrayScanner.
+
+## Testing
+
+* Migrate essential tests from `.deprecated` to the current package
+  structure.

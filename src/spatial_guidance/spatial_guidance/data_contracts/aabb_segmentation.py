@@ -15,8 +15,6 @@ from ..utils import Console
 from .core import DataModel
 
 # TODO: binary_erosion on binary mask (use np.ones((3,3)) as structuring element)
-# TODO: unify depth computation (one uses percentile, another uses nearest_nonzero)
-
 
 def pixel_to_camera_coordinates(
     pixel_coords: np.ndarray, depth: float, camera_intrinsics: np.ndarray
@@ -128,8 +126,8 @@ def compute_3d_center_from_bbox(
         if len(valid_depths) == 0:
             return None
 
-        # Use a lower percentile (e.g. 10th) to avoid background bleed-through
-        median_depth = float(np.percentile(valid_depths, 10))
+        # Use nearest_nonzero for robust depth estimation (unified with mask computation)
+        median_depth = nearest_nonzero(valid_depths)
 
         # Center of bounding box in pixel coordinates
         center_x = (x0 + x1) / 2.0

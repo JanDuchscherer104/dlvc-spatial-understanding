@@ -196,37 +196,20 @@ def compute_rotation_from_3d_position(
 ) -> Tuple[Optional[float], Optional[int]]:
     """
     Compute BEV rotation angle and clock position from a 3D point in camera coords.
-    Handles both front (z>0) and back (z<=0) cases.
     """
     try:
         if center_3d is None or len(center_3d) != 3:
             return None, None
 
-        x_cam, y_cam, z_cam = center_3d
+        x_cam, _, z_cam = center_3d
 
-        # --- Behind-camera case: reflect bearing by +180°
-        if z_cam <= 0:
-            bearing_rad = math.atan2(x_cam, abs(z_cam))
-            bearing_deg = math.degrees(bearing_rad)
-            rotation_deg = (bearing_deg + 180) % 360
-
-            # Convert to 12-hour clock
-            hour_step = 30.0
-            clock_hour = round(rotation_deg / hour_step) % 12
-            if clock_hour == 0:
-                clock_hour = 12
-
-            return rotation_deg, clock_hour
-
-        # --- Front-camera case (original logic) ---
+        # Use atan2(x, z) to get clockwise bearing from +z
         bearing_rad = math.atan2(x_cam, z_cam)
-        bearing_deg = math.degrees(bearing_rad)
-        rotation_deg = bearing_deg if bearing_deg >= 0 else 360 + bearing_deg
+        rotation_deg = math.degrees(bearing_rad) % 360
 
-        hour_step = 30.0
-        clock_hour = round(rotation_deg / hour_step) % 12
-        if clock_hour == 0:
-            clock_hour = 12
+        # Discretize to 12-hour clock
+        clock_hour = round(rotation_deg / 30) % 12
+        clock_hour = 12 if clock_hour == 0 else clock_hour
 
         return rotation_deg, clock_hour
 

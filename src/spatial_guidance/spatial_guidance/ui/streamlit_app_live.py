@@ -10,6 +10,9 @@ import nest_asyncio
 import numpy as np
 import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+import io
 
 # Enable nested asyncio for Streamlit compatibility
 nest_asyncio.apply()
@@ -25,7 +28,7 @@ except ImportError:
     st.warning(
         "streamlit-webrtc not available. Install it for voice mode: pip install streamlit-webrtc"
     )
-
+from spatial_guidance.visualization.detection_visualizer import DetectionVisualizer
 from spatial_guidance.data_contracts import AABBDetections
 from spatial_guidance.live_agent import (
     MODEL_OPTIONS,
@@ -324,38 +327,28 @@ def load_frame(live_agent: GeminiLiveAgent, frame_idx: int):
 
 
 def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
-    """Display frame images and detection results."""
+    """Display frame images, detection results, and ground plane visualization."""
     frame = load_frame(live_agent, frame_idx)
     if frame is None:
         st.error("Failed to load frame")
         return
 
-    # Create tabs for different views
-    rgb_tab, depth_tab, det_tab = st.tabs(["RGB", "Depth", "Detections"])
+    # Add a new tab for Ground Plane visualization
+    rgb_tab, depth_tab, det_tab, ground_tab = st.tabs(["RGB", "Depth", "Detections", "Ground Plane"])
 
     with rgb_tab:
         st.image(frame.rgb_image, caption="RGB Image", use_container_width=True)
 
     with depth_tab:
-        # Convert depth image to numpy array (values are in meters)
         depth_arr = np.array(frame.depth_image, dtype=np.float32)
-
-        # Normalize depth values for display (convert meters to 0-255 range)
-        # Filter out invalid depth values (0 or very large values)
-        valid_mask = (depth_arr > 0) & (depth_arr < 50.0)  # Assume max 50m depth
-
+        valid_mask = (depth_arr > 0) & (depth_arr < 50.0)
         if np.any(valid_mask):
-            # Normalize to 0-255 range for display
             min_depth: float = float(np.min(depth_arr[valid_mask]))
             max_depth: float = float(np.max(depth_arr[valid_mask]))
-
-            # Create display depth image
             depth_display = np.zeros_like(depth_arr, dtype=np.uint8)
             if max_depth > min_depth:
-                # Normalize valid depth values to 0-255
                 normalized = (depth_arr - min_depth) / (max_depth - min_depth) * 255
                 depth_display[valid_mask] = normalized[valid_mask].astype(np.uint8)
-
             st.image(
                 depth_display,
                 caption=f"Depth Image (range: {min_depth:.2f}m - {max_depth:.2f}m)",
@@ -365,7 +358,6 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
             st.warning("No valid depth data found in this frame")
 
     with det_tab:
-        # Get list of all available detection keys, sorted by frame index
         available_det_keys = []
         for key in st.session_state.detection_results.keys():
             if key.startswith("det_"):
@@ -374,14 +366,9 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
                     available_det_keys.append((frame_num, key))
                 except (IndexError, ValueError):
                     continue
-
-        # Sort by frame number
         available_det_keys.sort(key=lambda x: x[0])
         detection_keys = [key for _, key in available_det_keys]
-
-        # Initialize navigation index for detection browsing
         if "det_nav_key_idx" not in st.session_state:
-            # Find the current frame's detection if it exists, otherwise start at 0
             current_det_key = f"det_{frame_idx}"
             if current_det_key in detection_keys:
                 st.session_state.det_nav_key_idx = detection_keys.index(current_det_key)
@@ -389,11 +376,8 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
                 st.session_state.det_nav_key_idx = 0
             else:
                 st.session_state.det_nav_key_idx = None
-
-        # Ensure the index is valid and handle case where detection list has changed
         if detection_keys:
             if st.session_state.det_nav_key_idx is None:
-                # If we had no detections before but now we do, initialize to current frame or 0
                 current_det_key = f"det_{frame_idx}"
                 if current_det_key in detection_keys:
                     st.session_state.det_nav_key_idx = detection_keys.index(
@@ -406,10 +390,7 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
             elif st.session_state.det_nav_key_idx < 0:
                 st.session_state.det_nav_key_idx = 0
         else:
-            # No detections available
             st.session_state.det_nav_key_idx = None
-
-        # Display detection navigation info
         if detection_keys:
             current_idx = (
                 st.session_state.det_nav_key_idx
@@ -418,14 +399,10 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
             )
             current_key = detection_keys[current_idx]
             current_frame_num = int(current_key.split("_")[1])
-
             st.info(
                 f"📍 Viewing detection from Frame {current_frame_num} ({current_idx + 1}/{len(detection_keys)} total detections)"
             )
-
-        # Navigation buttons for previous/next detections
         nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
-
         with nav_col1:
             if st.button(
                 "⬅️ Previous Detection",
@@ -439,10 +416,8 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
                 ):
                     st.session_state.det_nav_key_idx -= 1
                     st.rerun()
-
         with nav_col2:
             if st.button("🔄 Current Frame", key=f"curr_det_{frame_idx}"):
-                # Jump to current frame's detection if it exists
                 current_det_key = f"det_{frame_idx}"
                 if current_det_key in detection_keys:
                     st.session_state.det_nav_key_idx = detection_keys.index(
@@ -451,7 +426,6 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
                     st.rerun()
                 else:
                     st.warning(f"No detection available for frame {frame_idx}")
-
         with nav_col3:
             if st.button(
                 "➡️ Next Detection",
@@ -465,29 +439,22 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
                 ):
                     st.session_state.det_nav_key_idx += 1
                     st.rerun()
-
-        # Display current detection if available
         if detection_keys and st.session_state.det_nav_key_idx is not None:
             current_det_key = detection_keys[st.session_state.det_nav_key_idx]
             detections = st.session_state.detection_results[current_det_key]
             current_frame_num = int(current_det_key.split("_")[1])
-
             assert isinstance(
                 detections, AABBDetections
             ), f"Expected AABBDetections type, got {type(detections)}"
-
             st.image(
                 detections.visualization_rgb,
                 caption=f"Detections from Frame {current_frame_num}",
                 use_container_width=True,
             )
-
-            # Show object details in an interactive table
             if detections.objects:
                 st.subheader(
                     f"Frame {current_frame_num} - Detected Objects ({len(detections.objects)})"
                 )
-
                 rows = []
                 for obj in detections.objects.values():
                     rows.append(
@@ -510,7 +477,6 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
                             "Rotation clock": obj.rotation_clock,
                         }
                     )
-
                 df = pd.DataFrame(rows)
                 st.dataframe(df, use_container_width=True)
             else:
@@ -519,6 +485,10 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
             st.info(
                 "No detection results available. Run object detection to see results here."
             )
+
+    with ground_tab:
+        buf = DetectionVisualizer.plot_ground_plane_on_rgb(frame)
+        st.image(buf, caption=None, use_container_width=True)
 
 
 def get_suggested_prompts(mode: OperationalMode) -> List[str]:

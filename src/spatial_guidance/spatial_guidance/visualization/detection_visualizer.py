@@ -813,3 +813,114 @@ class DetectionVisualizer:
             else:
                 print("  Rotation: Not computed")
         print("\n===========================")
+
+    @staticmethod
+    def create_ground_plane_polygon_simple(normal, d, K, image_shape, center_x, center_y, scale_x=0.2, scale_y=0.9):
+        """Create polygon by projecting corners at a fixed depth."""
+        h, w = image_shape
+        fx, fy = K[0, 0], K[1, 1]
+        cx, cy = K[0, 2], K[1, 2]
+        depth = 5.0
+        max_offset_x = int(w * scale_x)
+        max_offset_y = int(h * scale_y)
+        image_corners = [
+            [center_x - max_offset_x, center_y - max_offset_y],
+            [center_x + max_offset_x, center_y - max_offset_y],
+            [center_x + max_offset_x, center_y + max_offset_y],
+            [center_x - max_offset_x, center_y + max_offset_y],
+        ]
+        polygon_points = []
+        for u, v in image_corners:
+            u = max(0, min(w-1, u))
+            v = max(0, min(h-1, v))
+            x_3d = (u - cx) * depth / fx
+            y_3d = (v - cy) * depth / fy
+            z_3d = depth
+            point_3d = np.array([x_3d, y_3d, z_3d])
+            distance_to_plane = np.dot(normal, point_3d) + d
+            projected_point = point_3d - distance_to_plane * normal
+            if projected_point[2] > 0.1:
+                proj_u = cx + (projected_point[0] / projected_point[2]) * fx
+                proj_v = cy + (projected_point[1] / projected_point[2]) * fy
+                polygon_points.append([proj_u, proj_v])
+        if len(polygon_points) >= 3:
+            return np.array(polygon_points)
+        else:
+            return None
+
+    @staticmethod
+    def plot_ground_plane_on_rgb(frame_data):
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from matplotlib.patches import Polygon
+        import io
+
+        rgb_array = np.array(frame_data.rgb_image)
+        depth_array = np.array(frame_data.depth_image)
+        h, w = depth_array.shape
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.imshow(rgb_array)
+        ax.axis('off')
+
+        if frame_data.ground_plane is not None:
+            normal, d = frame_data.ground_plane
+            K = frame_data.camera_intrinsics
+            cx, cy = w // 2, h // 2
+
+            # --- Polygon creation ---
+            def create_ground_plane_polygon_simple(normal, d, K, image_shape, center_x, center_y, scale_x=0.2, scale_y=0.9):
+                h, w = image_shape
+                fx, fy = K[0, 0], K[1, 1]
+                cx, cy = K[0, 2], K[1, 2]
+                depth = 5.0
+                max_offset_x = int(w * scale_x)
+                max_offset_y = int(h * scale_y)
+                image_corners = [
+                    [center_x - max_offset_x, center_y - max_offset_y],
+                    [center_x + max_offset_x, center_y - max_offset_y],
+                    [center_x + max_offset_x, center_y + max_offset_y],
+                    [center_x - max_offset_x, center_y + max_offset_y],
+                ]
+                polygon_points = []
+                for u, v in image_corners:
+                    u = max(0, min(w-1, u))
+                    v = max(0, min(h-1, v))
+                    x_3d = (u - cx) * depth / fx
+                    y_3d = (v - cy) * depth / fy
+                    z_3d = depth
+                    point_3d = np.array([x_3d, y_3d, z_3d])
+                    distance_to_plane = np.dot(normal, point_3d) + d
+                    projected_point = point_3d - distance_to_plane * normal
+                    if projected_point[2] > 0.1:
+                        proj_u = cx + (projected_point[0] / projected_point[2]) * fx
+                        proj_v = cy + (projected_point[1] / projected_point[2]) * fy
+                        polygon_points.append([proj_u, proj_v])
+                if len(polygon_points) >= 3:
+                    return np.array(polygon_points)
+                else:
+                    return None
+
+            polygon = create_ground_plane_polygon_simple(normal, d, K, (h, w), cx, cy, scale_x=0.2, scale_y=0.9)
+            if polygon is not None and len(polygon) >= 3:
+                patch = Polygon(polygon, closed=True, facecolor='yellow', edgecolor='red', alpha=0.3, linewidth=3)
+                ax.add_patch(patch)
+                closed = np.vstack([polygon, polygon[0]])
+                ax.plot(closed[:, 0], closed[:, 1], color='red', linewidth=4, alpha=0.9)
+                ax.scatter(polygon[:, 0], polygon[:, 1], color='red', s=50, zorder=10)
+
+            # Draw only the normal arrow (no text)
+            fx, fy = K[0, 0], K[1, 1]
+            Z0 = depth_array[cy, cx]
+            if Z0 <= 0:
+                valid = depth_array[depth_array > 0]
+                Z0 = float(np.median(valid)) if valid.size > 0 else 1.0
+            du = normal[0] * 1.0 * fx / Z0
+            dv = normal[1] * 1.0 * fy / Z0
+            ax.arrow(cx, cy, du, dv, head_width=12, head_length=15, fc='blue', ec='blue', linewidth=3)
+
+        buf = io.BytesIO()
+        plt.tight_layout(pad=0)
+        plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+        buf.seek(0)
+        return buf

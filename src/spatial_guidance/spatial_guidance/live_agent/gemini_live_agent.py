@@ -12,10 +12,8 @@ from google import genai
 from google.genai import types
 from google.genai.live import AsyncSession
 
-from spatial_guidance.data_contracts.aabb_segmentation import (
-    compute_rotation_from_3d_position,
-)
 from spatial_guidance.data_contracts.dataset import DatasetOut
+from spatial_guidance.scene_understanding.gemini_aabb_detection import GeminiAABBDetSeg
 
 from ..data_contracts.aabb_segmentation import AABBDetection, AABBDetections
 from ..utils import Console, PathConfig
@@ -62,7 +60,7 @@ class GeminiLiveAgent:
         is_rotated: Optional[bool] = None,
         dataset_dir: Optional[Path] = None,
     ):
-        self.config = config
+        self.config: GeminiLiveAgentConfig = config
         self.console = Console.with_prefix(self.__class__.__name__).set_debug(
             self.config.is_debug
         )
@@ -74,7 +72,9 @@ class GeminiLiveAgent:
         )
 
         # Initialize expert models
-        self.aabb_detector = self.config.gemini_aabb_detseg.setup_target()
+        self.aabb_detector: GeminiAABBDetSeg = (
+            self.config.gemini_aabb_detseg.setup_target()
+        )
 
         # Setup dataset
         self.update_dataset(dataset_dir=dataset_dir, is_rotated=is_rotated)

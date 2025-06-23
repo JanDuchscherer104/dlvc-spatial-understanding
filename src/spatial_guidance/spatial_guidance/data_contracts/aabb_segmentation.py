@@ -15,8 +15,6 @@ from ..utils import Console
 from .core import DataModel
 
 # TODO: binary_erosion on binary mask (use np.ones((3,3)) as structuring element)
-# TODO: unify depth computation (one uses percentile, another uses nearest_nonzero)
-
 
 def pixel_to_camera_coordinates(
     pixel_coords: np.ndarray, depth: float, camera_intrinsics: np.ndarray
@@ -44,17 +42,34 @@ def pixel_to_camera_coordinates(
     return np.array([x_cam, y_cam, z_cam])
 
 
-def nearest_nonzero(depths: np.ndarray) -> float:
-    """
-    Return the smallest depth that is within 3x the local MAD.
-    """
+# def nearest_nonzero(depths: np.ndarray) -> float:
+#     """
+#     Return the smallest depth that is within 3x the local MAD.
+#     """
+#     depths = depths[depths > 0]
+#     if depths.size == 0:
+#         return 0.0
+#     d0 = np.min(depths)
+#     mad = np.median(np.abs(depths - np.median(depths)))
+#     thresh = d0 + 3 * mad
+#     return float(depths[depths < thresh].min())
+
+
+def nearest_nonzero(depths: np.ndarray, k: float = 3.0) -> float:
     depths = depths[depths > 0]
     if depths.size == 0:
         return 0.0
-    d0 = np.min(depths)
-    mad = np.median(np.abs(depths - np.median(depths)))
-    thresh = d0 + 3 * mad
-    return float(depths[depths < thresh].min())
+
+    med = np.median(depths)
+    mad = np.median(np.abs(depths - med))
+    lower, upper = med - k * mad, med + k * mad
+
+    inliers = depths[(depths >= lower) & (depths <= upper)]
+    if inliers.size:
+        return float(np.min(inliers))
+    else:
+        # fall back to absolute minimum if no inliers
+        return float(np.min(depths))
 
 
 def camera_to_world_coordinates(
@@ -111,8 +126,8 @@ def compute_3d_center_from_bbox(
         if len(valid_depths) == 0:
             return None
 
-        # Use a lower percentile (e.g. 10th) to avoid background bleed-through
-        median_depth = float(np.percentile(valid_depths, 10))
+        # Use nearest_nonzero for robust depth estimation (unified with mask computation)
+        median_depth = nearest_nonzero(valid_depths)
 
         # Center of bounding box in pixel coordinates
         center_x = (x0 + x1) / 2.0
@@ -139,6 +154,7 @@ def compute_3d_center_from_mask(
     depth_image: np.ndarray,
     camera_intrinsics: np.ndarray,
     camera_pose: np.ndarray,
+    depth_val: Optional[float] = None,
 ) -> Optional[np.ndarray]:
     """
     Compute the 3D center of an object from its segmentation mask using depth statistics.
@@ -168,7 +184,8 @@ def compute_3d_center_from_mask(
 
         # Use a lower percentileto mitigate background depths
         # median_depth = float(np.percentile(valid_depths, 10))
-        depth_val = nearest_nonzero(valid_depths)
+        if depth_val is None:
+            depth_val = nearest_nonzero(valid_depths)
 
         # Center of mass of the mask in pixel coordinates
         y_coords, x_coords = np.where(object_pixels)
@@ -492,11 +509,15 @@ class AABBDetection(DataModel):
             if depth_image is not None:
                 try:
                     binary_mask = np_mask_full > 0
+                    # Erode the mask to avoid background bleed-through
+                    binary_mask = binary_erosion(
+                        binary_mask, structure=np.ones((3, 3)), iterations=3
+                    )
                     if binary_mask.sum() > 0:
                         depth_values = depth_image[binary_mask]
 
                         if len(depth_values) > 0:
-                            self.min_depth = float(np.percentile(depth_values, 10))
+                            self.min_depth = nearest_nonzero(depth_values)
                             self.med_depth = float(np.percentile(depth_values, 50))
                             self.max_depth = float(np.percentile(depth_values, 90))
                 except Exception as e:
@@ -517,7 +538,11 @@ class AABBDetection(DataModel):
 
                     # Compute 3D center from mask
                     self.center_3d_mask = compute_3d_center_from_mask(
-                        np_mask_full, depth_image, camera_intrinsics, camera_pose
+                        np_mask_full,
+                        depth_image,
+                        camera_intrinsics,
+                        camera_pose,
+                        depth_val=self.min_depth,
                     )
 
                     # Compute rotation from 3D position (prefer mask-based center, fallback to bbox-based)
@@ -548,7 +573,7 @@ class AABBDetection(DataModel):
             # Height from ground‑plane
             if ground_plane is not None and center_for_height is not None:
                 n, d = ground_plane
-                self.center_height_3d = float(np.dot(n, center_for_height) + d)
+                self.center_height_3d = float(n @ center_for_height + d)
             else:
                 self.center_height_3d = None
 
@@ -635,7 +660,7 @@ class AABBDetections(DataModel):
                         else None
                     )
                 ),
-                "depth": float(obj.med_depth or float("nan")),
+                "depth": float(obj.min_depth or float("nan")),
                 "rotation_clock": int(obj.rotation_clock or float("nan")),
                 "rotation_deg": float(obj.rotation_deg or float("nan")),
                 # "max_height_3d": float(obj.max_height_3d or float("nan")),
@@ -710,7 +735,7 @@ class AABBDetections(DataModel):
                         else None
                     )
                 ),
-                "depth": float(obj.med_depth or float("nan")),
+                "depth": float(obj.min_depth or float("nan")),
                 "rotation_clock": int(obj.rotation_clock or float("nan")),
                 "rotation_deg": float(obj.rotation_deg or float("nan")),
                 "center_height_3d": float(obj.center_height_3d or float("nan")),

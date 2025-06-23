@@ -30,7 +30,7 @@ class GeminiAABBDetSegConfig(BaseConfig["GeminiAABBDetSeg"]):
 
     mask_confidence_threshold: float = Field(0.45, gt=0.0, le=1.0)
     """Confidence threshold for the segmentation mask to be considered valid."""
-    resize: Optional[Tuple[int, int]] = (640, 640)
+    resize: Optional[Tuple[int, int]] = None  # (640, 640)
     """Resize the input image to this size before processing. If None, no resizing is done."""
 
     visualize_rgb: bool = False
@@ -116,9 +116,9 @@ Always ignore irrelevant scene elements like far-away objects, buildings, floor,
         default_factory=lambda: dict(
             hazards=(
                 "Detect hazardous objects including: "
-                "moveable hazards (vehicles, cyclists, trains), "
+                "moveable hazards (vehicles, cyclists, trains). Conider the context in which they appear, if the car is located on a road, it is most likely moving or about to move!"
                 "hazardous areas (train tracks, revolving doors, road crossings, intersections, steep slopes), "
-                "trip hazards (clutter, cords, high curbs), "
+                # "trip hazards (clutter, cords, high curbs), "
                 "head-level hazards (low signs, branches, overhangs)"
             ),
             navigation_landmarks=(

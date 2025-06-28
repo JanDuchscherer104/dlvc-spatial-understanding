@@ -2,62 +2,117 @@
 
 ## Overview
 
-<!-- TODO: revise -->
-This project aims to develop an application that provides 3D spatial scene understanding and interactive audio guidance specifically designed for blind users. By leveraging advanced techniques in depth estimation, object detection, and spatial audio rendering, the application seeks to enhance navigation and interaction in various environments.
+This project aims to develop an application that provides 3D spatial scene understanding and interactive audio guidance specifically designed for blind users. By leveraging advanced techniques in depth estimation, object detection, and live chat functions, the application seeks to enhance navigation and interaction in various environments.
 
-- **3D Spatial Scene Understanding**: Utilizes depth estimation and object detection to create a comprehensive understanding of the user's surroundings.
-- **Interactive Audio Guidance**: Generates spatial audio cues and spoken instructions to assist users in navigating their environment effectively.
-<!--/ TODO: revise -->
+# Spatial Guidance Setup Instructions
+
+## Table of Contents
+
+- [System Dependencies](#system-dependencies)
+- [Installation](#installation)
+- [API Configuration](#api-configuration)
+- [Dataset Setup](#dataset-setup)
 
 
-## Strucuture of the SpatialGuidance Package
+## System Dependencies
 
-```plaintext
-spatial_guidance
-├── __init__.py
-├── data_contracts
-│   ├── __init__.py
-│   ├── aabb_segmentation.py
-│   ├── core.py
-│   ├── dataset.py
-│   └── obb_detection.py
-├── data_handling
-│   ├── __init__.py
-│   └── stray_scanner
-│       ├── __init__.py
-│       ├── data_parser.py
-│       ├── stray_dataset.py
-│       └── stray_scanner_paths.py
-├── live_agent
-│   ├── __init__.py
-│   ├── actor_protocols.py
-│   ├── exec_api.py
-│   ├── gemini_live_agent.py
-│   ├── live_agent_config.py
-│   ├── live_agent_enums.py
-│   └── prompt_templates.py
-├── response_generation
-│   ├── __init__.py
-│   └── response_generator.py
-├── scene_understanding
-│   ├── __init__.py
-│   ├── gemini_aabb_detection.py
-│   ├── gemini_obb_detection.py
-│   └── gemini_scene_descriptor.py
-├── ui
-│   ├── __init__.py
-│   └── streamlit_app_live.py
-├── utils
-│   ├── __init__.py
-│   ├── base_config.py
-│   ├── configs.py
-│   └── console.py
-└── visualization
-    ├── __init__.py
-    ├── detection_visualizer.py
-    └── scene_visualizer.py
+### macOS
+
+```bash
+# Install system dependencies
+brew install portaudio
+brew install ffmpeg
 ```
 
-## Setup
+### Ubuntu/Debian
 
-For comprehensive setup instructions, please see **[SETUP.md](SETUP.md)**.
+```bash
+sudo apt update
+
+sudo apt install -y \
+    portaudio19-dev \
+    ffmpeg \
+
+sudo apt install -y pulseaudio pulseaudio-utils
+```
+
+## Installation
+
+```bash
+git clone https://github.com/your-org/dlvc-04-spatial-understanding.git
+cd dlvc-04-spatial-understanding/src/spatial_guidance
+
+conda env create -f environment.yml
+conda activate dlvc
+```
+
+### Poetry Installation
+
+```bash
+poetry install
+
+# Verify installation
+poetry run python -c "import spatial_guidance; print('✅ Installation successful')"
+```
+
+## API Configuration
+
+[Create a Gemini API key](https://aistudio.google.com/app/apikey) and add it to `.env` file in the project root directory.
+
+
+## Dataset Setup
+
+### Default Dataset Structure
+
+The application expects datasets in the following structure:
+
+```
+.data/SmartAIs-Recorded-Data/
+├── scene1/
+│   ├── rgb/
+│   ├── depth/
+│   ├── camera_matrix.csv
+│   ├── imu.csv
+|   └── odometry.csv
+├── scene2/
+│   ├── rgb/
+│   ├── depth/
+│   ├── camera_matrix.csv
+│   ├── imu.csv
+|   └── odometry.csv
+└── ...
+```
+
+
+### Option 1: Default Location
+
+```bash
+# Create the default data directory
+mkdir -p .data/SmartAIs-Recorded-Data
+
+# Copy your datasets to this location
+cp -r /path/to/your/datasets/* .data/SmartAIs-Recorded-Data/
+```
+
+### Option 2: Custom Location
+
+Edit `src/spatial_guidance/spatial_guidance/utils/configs.py`:
+
+```python
+# Update the data path in configs.py
+class PathConfig:
+    def __init__(self):
+        self.data = Path("/your/custom/path/to/datasets")
+
+# (Optional) Update the scenario path in stray_scanner_paths.py
+class StrayScannerPaths(BaseConfig):
+    """Configuration for Stray Scanner dataset paths."""
+
+    dataset_dir: Annotated[Path, Field(default="scenario")] # relative to path_config.data
+```
+
+### Step 3: Streamlit Application
+
+```bash
+streamlit run spatial_guidance/ui/streamlit_app_live.py
+```

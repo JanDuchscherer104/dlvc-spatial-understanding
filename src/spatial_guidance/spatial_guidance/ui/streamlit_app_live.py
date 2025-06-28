@@ -1,4 +1,5 @@
 import asyncio
+import io
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -6,13 +7,12 @@ from pathlib import Path
 from queue import Empty
 from typing import Any, Dict, List, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import nest_asyncio
 import numpy as np
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
-import io
 
 # Enable nested asyncio for Streamlit compatibility
 nest_asyncio.apply()
@@ -28,7 +28,6 @@ except ImportError:
     st.warning(
         "streamlit-webrtc not available. Install it for voice mode: pip install streamlit-webrtc"
     )
-from spatial_guidance.visualization.detection_visualizer import DetectionVisualizer
 from spatial_guidance.data_contracts import AABBDetections
 from spatial_guidance.live_agent import (
     MODEL_OPTIONS,
@@ -44,6 +43,7 @@ from spatial_guidance.live_agent import (
     TextEvt,
 )
 from spatial_guidance.utils import Console, PathConfig
+from spatial_guidance.visualization.detection_visualizer import DetectionVisualizer
 
 CONSOLE = Console.with_prefix("streamlit_app_live")
 
@@ -185,9 +185,7 @@ def create_sidebar() -> Tuple[
     # Model selection with Live API specific default
     model_keys = list(MODEL_OPTIONS.keys())
     default_idx = (
-        model_keys.index("gemini-2.5-pro-preview-05-06")
-        if "gemini-2.5-pro-preview-05-06" in model_keys
-        else 0
+        model_keys.index("gemini-2.5-pro") if "gemini-2.5-pro" in model_keys else 0
     )
     model_name = st.sidebar.selectbox(
         "Model",
@@ -334,7 +332,9 @@ def display_frame_visualizations(live_agent: GeminiLiveAgent, frame_idx: int):
         return
 
     # Add a new tab for Ground Plane visualization
-    rgb_tab, depth_tab, det_tab, ground_tab = st.tabs(["RGB", "Depth", "Detections", "Ground Plane"])
+    rgb_tab, depth_tab, det_tab, ground_tab = st.tabs(
+        ["RGB", "Depth", "Detections", "Ground Plane"]
+    )
 
     with rgb_tab:
         st.image(frame.rgb_image, caption="RGB Image", use_container_width=True)

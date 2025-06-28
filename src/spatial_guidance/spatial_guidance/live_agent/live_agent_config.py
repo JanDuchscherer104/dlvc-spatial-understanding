@@ -20,8 +20,10 @@ from .prompt_templates import LiveAgentPromptTemplates
 from .tools import LiveAgentTools
 
 MODEL_OPTIONS: dict[str, str] = {
-    "gemini-2.5-flash-preview-05-20": "Gemini 2.5 Flash Preview(05-20) - adaptive thinking, cost-efficient",
-    "gemini-2.5-pro-preview-05-06": "Gemini 2.5 Pro Preview (05-06) - enhanced reasoning, multimodal",
+    # "gemini-2.5-flash-preview-05-20": "Gemini 2.5 Flash Preview(05-20) - adaptive thinking, cost-efficient",
+    # "gemini-2.5-pro-preview-05-06": "Gemini 2.5 Pro Preview (05-06) - enhanced reasoning, multimodal",
+    "gemini-2.5-pro": "Gemini 2.5 Pro - advanced reasoning, multimodal",
+    "gemini-2.5-flash": "Gemini 2.5 Flash - cost-efficient, adaptive thinking",
 }
 
 
@@ -50,7 +52,9 @@ class GeminiLiveAgentConfig(BaseConfig["GeminiLiveAgent"]):
     response_style: ResponseStyle = ResponseStyle(
         dir_style=DirectionalStyle.CLOCK_FACE, dist_style=DistanceStyle.PRECISE
     )
-    live_model: Literal["gemini-2.0-flash-live-001"] = "gemini-2.0-flash-live-001"
+    live_model: Literal[
+        "gemini-2.0-flash-live-001", "gemini-live-2.5-flash-preview"
+    ] = "gemini-live-2.5-flash-preview"
     live_model_config: types.LiveConnectConfig = Field(
         default_factory=lambda: types.LiveConnectConfig(
             response_modalities=[types.Modality.TEXT, types.Modality.IMAGE],

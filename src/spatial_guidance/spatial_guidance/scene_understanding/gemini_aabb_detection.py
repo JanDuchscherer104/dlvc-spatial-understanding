@@ -44,9 +44,11 @@ class GeminiAABBDetSegConfig(BaseConfig["GeminiAABBDetSeg"]):
 
     # Model-specific configuration
     model_name: Literal[
-        "gemini-2.5-flash-preview-05-20",
-        "gemini-2.5-pro-preview-05-06",
-    ] = "gemini-2.5-pro-preview-05-06"
+        # "gemini-2.5-flash-preview-05-20",
+        # "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+    ] = "gemini-2.5-pro"
     """Name of the Gemini model to use"""
 
     # TODO: Tune further by logging schema violation rate vs settings; raise temperature by +0.1 only if detection recall is < 90 % over five frames.

@@ -1,0 +1,26 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+\begin{algorithm}[H]
+\caption{3D Center from Bounding Box}
+\label{alg:bbox_3d_center}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} $bbox$ ([y₀,x₀,y₁,x₁]), $depth\_image$ (H×W), $\mathbf{K}$ (3×3)
+\STATE \textbf{Output:} $\boldsymbol{p}_{\text{cam}}$ (3×1) or None
+\STATE
+\STATE $y_0, x_0, y_1, x_1 \leftarrow bbox$
+\STATE $valid\_depths \leftarrow \{d \in depth\_image[y_0:y_1, x_0:x_1] : d > 0\}$
+\IF{$|valid\_depths| = 0$}
+    \RETURN None
+\ENDIF
+\STATE $d_{\text{center}} \leftarrow P_{10}(valid\_depths)$
+\STATE $\boldsymbol{p}_{\text{pixel}} \leftarrow [(x_0 + x_1)/2, (y_0 + y_1)/2]^T$
+\RETURN $\text{pixel\_to\_camera}(\boldsymbol{p}_{\text{pixel}}, d_{\text{center}}, \mathbf{K})$
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}

@@ -1,0 +1,27 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+\begin{algorithm}[H]
+\caption{Relative Camera Movement Description}
+\label{alg:relative_movement}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} $\mathbf{T}_{\text{self}}$, $\mathbf{T}_{\text{other}}$ (4×4 camera poses), $idx_{\text{self}}$, $idx_{\text{other}}$
+\STATE \textbf{Output:} movement description string or None
+\STATE
+\IF{$\mathbf{T}_{\text{self}} = \text{None}$ OR $\mathbf{T}_{\text{other}} = \text{None}$}
+    \RETURN None
+\ENDIF
+\STATE $\mathbf{T}_{\text{rel}} \leftarrow \mathbf{T}_{\text{other}} \cdot \mathbf{T}_{\text{self}}^{-1}$
+\STATE $\mathbf{R}_{\text{rel}} \leftarrow \mathbf{T}_{\text{rel}}[0:3, 0:3]$, $\boldsymbol{\tau}_{\text{rel}} \leftarrow \mathbf{T}_{\text{rel}}[0:3, 3]$
+\STATE $d_{\text{trans}} \leftarrow \|\boldsymbol{\tau}_{\text{rel}}\|_2$
+\STATE $\theta_{\text{yaw}} \leftarrow \arctan2(-\mathbf{R}_{\text{rel}}[2,0], \mathbf{R}_{\text{rel}}[0,0])$
+\STATE $direction \leftarrow$ "ccw/left" if $\theta_{\text{yaw}} > 0$ else "cw/right"
+\RETURN "Frame " + $idx_{\text{self}}$ + " to " + $idx_{\text{other}}$ + ": moved " + $d_{\text{trans}}$ + "m, rotated " + $\theta_{\text{yaw}}$ + "° (" + $direction$ + ")"
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}

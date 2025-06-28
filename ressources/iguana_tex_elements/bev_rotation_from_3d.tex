@@ -1,0 +1,35 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+Bird's Eye View (BEV) rotation from 3D camera coordinates:
+$$
+\begin{aligned}
+\theta_{\text{bearing}} &= \arctan2\left(x_{\text{cam}}, z_{\text{cam}}\right) \\
+\theta_{\text{deg}} &= \theta_{\text{bearing}} \cdot \frac{180°}{\pi} \bmod 360° \\
+h_{\text{clock}} &= \left\lfloor \frac{\theta_{\text{deg}}}{30°} + 0.5 \right\rfloor \bmod 12
+\end{aligned}
+$$
+
+where $\boldsymbol{p}_{\text{cam}} = [x_{\text{cam}}, y_{\text{cam}}, z_{\text{cam}}]^T$ and we use the horizontal plane $(x_{\text{cam}}, z_{\text{cam}})$.
+
+Clock position mapping: $h_{\text{clock}} = 12$ (or 0) corresponds to $\theta_{\text{deg}} = 0°$ (straight ahead in +Z direction).
+
+\end{document}rticle}
+\usepackage{amsmath}
+\pagestyle{empty}
+\begin{document}
+
+$$
+\begin{aligned}
+\theta_{bearing} &= \text{atan2}(x_{cam}, z_{cam}) \\
+\theta_{deg} &= \theta_{bearing} \cdot \frac{180°}{\pi} \bmod 360° \\
+\text{clock\_hour} &= \left\lfloor \frac{\theta_{deg}}{30°} + 0.5 \right\rfloor \bmod 12
+\end{aligned}
+$$
+
+where $(x_{cam}, z_{cam})$ are the camera coordinates in the horizontal plane, and clock hour 12 corresponds to $\theta_{deg} = 0°$ (straight ahead).
+
+\end{document}

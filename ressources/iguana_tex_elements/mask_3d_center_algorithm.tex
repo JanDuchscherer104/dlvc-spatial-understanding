@@ -1,0 +1,30 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+\begin{algorithm}[H]
+\caption{3D Center from Segmentation Mask}
+\label{alg:mask_3d_center}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} $mask$ (H×W binary), $depth\_image$ (H×W), $\mathbf{K}$ (3×3)
+\STATE \textbf{Output:} $\boldsymbol{p}_{\text{cam}}$ (3×1) or None
+\STATE
+\STATE $object\_pixels \leftarrow \{(v,u) : mask(v,u) > 0\}$
+\IF{$|object\_pixels| = 0$}
+    \RETURN None
+\ENDIF
+\STATE $valid\_depths \leftarrow \{depth\_image(v,u) : (v,u) \in object\_pixels, depth\_image(v,u) > 0\}$
+\IF{$|valid\_depths| = 0$}
+    \RETURN None
+\ENDIF
+\STATE $d_{\text{mask}} \leftarrow \text{nearest\_nonzero}(valid\_depths)$
+\STATE $u_{\text{center}} \leftarrow \text{median}(\{u : (v,u) \in object\_pixels\})$
+\STATE $v_{\text{center}} \leftarrow \text{median}(\{v : (v,u) \in object\_pixels\})$
+\RETURN $\text{pixel\_to\_camera}([u_{\text{center}}, v_{\text{center}}]^T, d_{\text{mask}}, \mathbf{K})$
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}

@@ -1,0 +1,32 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+\textbf{DEPRECATED:} BEV rotation from bounding box geometry (use 3D position instead):
+
+Angular offset from image center:
+$$
+\theta_{\text{angular}} = \arctan\left(\frac{u_{\text{pixel}} - c_x}{f_x}\right)
+$$
+
+Degree conversion with wrapping:
+$$
+\theta_{\text{deg}} = \begin{cases}
+\theta_{\text{angular}} \cdot \frac{180°}{\pi} & \text{if } \theta_{\text{angular}} \geq 0 \\
+360° + \theta_{\text{angular}} \cdot \frac{180°}{\pi} & \text{if } \theta_{\text{angular}} < 0
+\end{cases}
+$$
+
+Clock hour discretization:
+$$
+h_{\text{clock}} = \begin{cases}
+\left\lfloor \frac{\theta_{\text{deg}}}{30°} + 0.5 \right\rfloor \bmod 12 & \text{if result} \neq 0 \\
+12 & \text{if result} = 0
+\end{cases}
+$$
+
+where $\boldsymbol{p}_{\text{pixel}} = [u_{\text{pixel}}, v_{\text{pixel}}]^T$ is the bounding box center and $[c_x, c_y]^T$ is the principal point.
+
+\end{document}

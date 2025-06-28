@@ -1,0 +1,30 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+Ground plane equation in camera coordinates:
+$$
+\boldsymbol{n}^T \boldsymbol{x} + d = 0
+$$
+
+RANSAC-based ground plane detection:
+$$
+\begin{aligned}
+\boldsymbol{n}_{\text{norm}} &= \frac{\boldsymbol{n}}{\|\boldsymbol{n}\|_2} \\
+d_{\text{plane}} &= d
+\end{aligned}
+$$
+
+Robust normal orientation for camera coordinate system:
+$$
+\boldsymbol{n}_{\text{final}} = \begin{cases}
+\boldsymbol{n}_{\text{norm}} & \text{if } \boldsymbol{n}_{\text{norm}} \cdot \boldsymbol{u}_{\text{up}} > 0 \land \boldsymbol{n}_{\text{norm}} \cdot \boldsymbol{u}_{\text{fwd}} > 0 \\
+-\boldsymbol{n}_{\text{norm}} & \text{otherwise}
+\end{cases}
+$$
+
+where $\boldsymbol{u}_{\text{up}} = [0, -1, 0]^T$ (up direction) and $\boldsymbol{u}_{\text{fwd}} = [0, 0, 1]^T$ (forward direction) in camera coordinates.
+
+\end{document}

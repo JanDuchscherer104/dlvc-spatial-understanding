@@ -1,0 +1,31 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+\begin{algorithm}[H]
+\caption{Ground Plane Detection for Frame}
+\label{alg:ground_plane_detection_frame}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} $frame\_idx$, $config$
+\STATE \textbf{Output:} $(\boldsymbol{n}, d)$ or None
+\STATE
+\IF{$\neg config.detect\_ground\_plane$}
+    \RETURN None
+\ENDIF
+\STATE $depth\_array \leftarrow \text{get\_depth}(frame\_idx)$
+\STATE $\mathbf{K} \leftarrow \text{get\_intrinsics}()$
+\IF{$config.is\_rotated$}
+    \STATE $\mathbf{K} \leftarrow \text{rotate\_intrinsics\_90\_cw}(\mathbf{K})$
+\ENDIF
+\IF{$config.resize\_depth\_to\_rgb$}
+    \STATE $\mathbf{K} \leftarrow \text{get\_scaled\_intrinsics}()$
+\ENDIF
+\STATE $camera\_pose \leftarrow \text{get\_poses}(frame\_idx)$ if $config.use\_world\_coords$ else None
+\RETURN $\text{detect\_ground\_plane}(depth\_array, \mathbf{K}, camera\_pose)$
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}

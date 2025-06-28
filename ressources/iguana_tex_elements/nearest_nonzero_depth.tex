@@ -1,0 +1,19 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+Robust depth estimation using two-sided MAD (\textit{Median Absolute Deviation}) for outlier rejection:
+$$
+d_{\text{robust}} = \min\bigl\{d \in \mathcal{D}_{\text{valid}} : L \le d \le U \bigr\}
+\quad\text{where}\quad
+\begin{aligned}
+\mathcal{D}_{\text{valid}} &= \{d \in \mathcal{D} : d > 0\},\\
+m &= \mathrm{median}\bigl(\mathcal{D}_{\text{valid}}\bigr),\\
+\mathrm{MAD} &= \mathrm{median}\bigl(|\mathcal{D}_{\text{valid}} - m|\bigr),\\
+L &= m - k_{L} \cdot \mathrm{MAD},\quad U = m + k_{U} \cdot \mathrm{MAD}.
+\end{aligned}
+$$
+
+\end{document}

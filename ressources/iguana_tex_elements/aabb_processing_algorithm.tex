@@ -1,0 +1,38 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+\begin{algorithm}[H]
+\caption{AABB Detection Processing}
+\label{alg:aabb_processing}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Image size $(w, h)$, confidence threshold $t_{\text{conf}}$, depth image $\mathbf{D}$, camera intrinsics $\boldsymbol{K}$, camera pose $\boldsymbol{T}_{\text{WC}}$, ground plane $(\boldsymbol{n}, d)$
+\STATE \textbf{Output:} Processed AABB detection with 3D properties
+\STATE
+\STATE Denormalize bounding box coordinates to absolute pixel values
+\STATE Validate bounding box dimensions
+\STATE Resize and position object mask within image bounds
+\IF{confidence threshold provided}
+    \STATE Apply threshold to mask values
+\ENDIF
+\IF{depth image available}
+    \STATE Extract depth values from masked region
+    \STATE Compute depth statistics: $d_{\min}$, $d_{\text{median}}$, $d_{\max}$
+\ENDIF
+\IF{camera parameters available}
+    \STATE Compute 3D center from bounding box: $\boldsymbol{c}_{\text{bbox}}$
+    \STATE Compute 3D center from mask: $\boldsymbol{c}_{\text{mask}}$
+    \STATE Compute rotation from 3D position
+\ENDIF
+\IF{ground plane available}
+    \STATE Compute object height: $h = \boldsymbol{n} \cdot \boldsymbol{c} + d$
+\ENDIF
+\STATE Set processing flag to complete
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}

@@ -1,0 +1,27 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+3D center computation from segmentation mask:
+$$
+d_{\text{mask}} = \text{nearest\_nonzero}\left(\mathcal{D}_{\text{mask}}\right)
+$$
+
+where $\mathcal{D}_{\text{mask}} = \left\{d(v,u) : M(v,u) > 0, d(v,u) > 0\right\}$ and $M(v,u) \in \{0,1\}$ is the binary segmentation mask.
+
+Center of mass from mask (median-based):
+$$
+\boldsymbol{p}_{\text{center}} = \begin{bmatrix}
+u_{\text{center}} \\
+v_{\text{center}}
+\end{bmatrix} = \begin{bmatrix}
+\text{median}\left(\left\{u : M(v,u) > 0\right\}\right) \\
+\text{median}\left(\left\{v : M(v,u) > 0\right\}\right)
+\end{bmatrix}
+$$
+
+Final 3D center: $\boldsymbol{p}_{\text{cam}} = \text{pixel\_to\_camera}\left(\boldsymbol{p}_{\text{center}}, d_{\text{mask}}, \mathbf{K}\right)$
+
+\end{document}

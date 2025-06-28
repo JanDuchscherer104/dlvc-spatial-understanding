@@ -1,0 +1,27 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+Camera-to-world coordinate transformation:
+$$
+\boldsymbol{p}_{\text{world}} = \mathbf{T}_{\text{CW}} \begin{bmatrix} \boldsymbol{p}_{\text{cam}} \\ 1 \end{bmatrix}
+$$
+
+where $\mathbf{T}_{\text{CW}} = \left(\mathbf{T}_{\text{WC}}\right)^{-1} \in \text{SE}(3)$ and $\mathbf{T}_{\text{WC}}$ is the world-to-camera transformation:
+
+$$
+\mathbf{T}_{\text{WC}} =
+\begin{bmatrix}
+\mathbf{R}_{\text{WC}} & \boldsymbol{t}_{\text{WC}} \\
+\mathbf{0}^T & 1
+\end{bmatrix}, \quad
+\mathbf{T}_{\text{CW}} =
+\begin{bmatrix}
+\mathbf{R}_{\text{WC}}^T & -\mathbf{R}_{\text{WC}}^T \boldsymbol{t}_{\text{WC}} \\
+\mathbf{0}^T & 1
+\end{bmatrix}
+$$
+
+\end{document}

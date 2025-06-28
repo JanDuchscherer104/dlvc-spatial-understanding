@@ -1,0 +1,34 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+Pixel-to-camera coordinate transformation:
+$$
+\boldsymbol{p}_{\text{cam}} =
+\begin{bmatrix}
+x_{\text{cam}} \\
+y_{\text{cam}} \\
+z_{\text{cam}}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\frac{(u - c_x) \cdot d}{f_x} \\
+\frac{(v - c_y) \cdot d}{f_y} \\
+d
+\end{bmatrix}
+$$
+
+where $(u, v) \in \mathbb{R}^2$ are pixel coordinates, $d \in \mathbb{R}^+$ is depth, and $\mathbf{K} \in \mathbb{R}^{3 \times 3}$ is:
+$$
+\mathbf{K} =
+\begin{bmatrix}
+f_x & 0 & c_x \\
+0 & f_y & c_y \\
+0 & 0 & 1
+\end{bmatrix}
+$$
+
+\end{document}

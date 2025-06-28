@@ -1,0 +1,27 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+$$
+\mathbf{T}_{\text{rel}} = \mathbf{T}_{\text{WC}}^{\text{to}} \cdot \left(\mathbf{T}_{\text{WC}}^{\text{from}}\right)^{-1}, \quad \mathbf{T}_{\bullet}^{\bullet} \in \text{SE}(3)
+$$
+
+$$
+\mathbf{T}_{\text{rel}} =
+\begin{bmatrix}
+\mathbf{R}_{\text{rel}} & \boldsymbol{\tau}_{\text{rel}} \\
+\mathbf{0}^T & 1
+\end{bmatrix}
+$$
+
+Motion parameters:
+$$
+\begin{aligned}
+d_{\text{trans}} &= \|\boldsymbol{\tau}_{\text{rel}}\|_2 \\
+\theta_{\text{yaw}} &= \arctan2\left(-\mathbf{R}_{\text{rel}}[2,0], \mathbf{R}_{\text{rel}}[0,0]\right)
+\end{aligned}
+$$
+
+\end{document}

@@ -1,0 +1,34 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+\begin{algorithm}[H]
+\caption{RANSAC Ground Plane Detection}
+\label{alg:ransac_ground_plane}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} $depth\_m$ (H×W), $\mathbf{K}$ (3×3), $camera\_pose$ (4×4), $voxel\_size$, $dist\_thresh$, $max\_iter$
+\STATE \textbf{Output:} $(\boldsymbol{n}, d)$ where $\boldsymbol{n}^T \boldsymbol{x} + d = 0$
+\STATE
+\STATE $valid\_mask \leftarrow (depth\_m > 0) \land (depth\_m < 100)$
+\IF{$\sum(valid\_mask) < 10$}
+    \STATE \textbf{return} error
+\ENDIF
+\STATE $pcd \leftarrow \text{create\_point\_cloud}(depth\_m, \mathbf{K})$
+\IF{$camera\_pose \neq \text{None}$}
+    \STATE $pcd \leftarrow \text{transform}(pcd, camera\_pose^{-1})$
+\ENDIF
+\STATE $pcd \leftarrow \text{voxel\_downsample}(pcd, voxel\_size)$
+\STATE $\boldsymbol{n}, d \leftarrow \text{RANSAC\_plane}(pcd, dist\_thresh, max\_iter)$
+\STATE $\boldsymbol{n} \leftarrow \boldsymbol{n} / \|\boldsymbol{n}\|$
+\COMMENT{Ensure normal points up and forward}
+\IF{$\boldsymbol{n} \cdot [0,-1,0]^T < 0$ OR $\boldsymbol{n} \cdot [0,0,1]^T < 0$}
+    \STATE $\boldsymbol{n}, d \leftarrow -\boldsymbol{n}, -d$
+\ENDIF
+\RETURN $(\boldsymbol{n}, d)$
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}

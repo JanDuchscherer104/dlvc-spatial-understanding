@@ -1,0 +1,30 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+3D center computation from bounding box:
+$$
+d_{\text{center}} = P_{10}\left(\mathcal{D}_{\text{bbox}}\right)
+$$
+
+where $P_{10}$ denotes the 10th percentile and $\mathcal{D}_{\text{bbox}}$ contains depth values within the bounding box region:
+$$
+\mathcal{D}_{\text{bbox}} = \left\{d(v,u) : v_0 \leq v \leq v_1, u_0 \leq u \leq u_1, d(v,u) > 0\right\}
+$$
+
+Bounding box center in pixel coordinates:
+$$
+\boldsymbol{p}_{\text{center}} = \begin{bmatrix}
+u_{\text{center}} \\
+v_{\text{center}}
+\end{bmatrix} = \begin{bmatrix}
+\frac{u_0 + u_1}{2} \\
+\frac{v_0 + v_1}{2}
+\end{bmatrix}
+$$
+
+Final 3D center: $\boldsymbol{p}_{\text{cam}} = \text{pixel\_to\_camera}\left(\boldsymbol{p}_{\text{center}}, d_{\text{center}}, \mathbf{K}\right)$
+
+\end{document}

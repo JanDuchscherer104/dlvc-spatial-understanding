@@ -1,0 +1,22 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+Object height computation from ground plane:
+$$
+h_{\text{object}} = \boldsymbol{n}_{\text{ground}}^T \boldsymbol{p}_{\text{center}} + d_{\text{ground}}
+$$
+
+where:
+\begin{align}
+\boldsymbol{n}_{\text{ground}} &\in \mathbb{R}^3 \text{ is the unit normal vector of the ground plane} \\
+d_{\text{ground}} &\in \mathbb{R} \text{ is the distance parameter} \\
+\boldsymbol{p}_{\text{center}} &\in \mathbb{R}^3 \text{ is the object's 3D center in camera coordinates}
+\end{align}
+
+The ground plane equation is $\boldsymbol{n}_{\text{ground}}^T \boldsymbol{x} + d_{\text{ground}} = 0$, so $h_{\text{object}}$ represents the signed distance from the object center to the ground plane.
+
+\end{document}

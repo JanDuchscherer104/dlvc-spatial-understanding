@@ -1,0 +1,28 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\pagestyle{empty}
+\begin{document}
+
+Binary mask erosion for robust depth statistics:
+$$
+M_{\text{eroded}} = M \ominus \mathbf{S}^{(3)}
+$$
+
+where $\mathbf{S}^{(3)} \in \{0,1\}^{3 \times 3}$ is a $3 \times 3$ structuring element and $\ominus$ denotes morphological erosion.
+
+Depth statistics computation from eroded mask:
+$$
+\begin{aligned}
+\mathcal{D}_{\text{valid}} &= \left\{d(v,u) : M_{\text{eroded}}(v,u) > 0 \land d(v,u) > 0\right\} \\
+d_{\min} &= \text{nearest\_nonzero}\left(\mathcal{D}_{\text{valid}}\right) \\
+d_{\text{med}} &= P_{50}\left(\mathcal{D}_{\text{valid}}\right) \\
+d_{\max} &= P_{90}\left(\mathcal{D}_{\text{valid}}\right)
+\end{aligned}
+$$
+
+where $P_k(\cdot)$ denotes the $k$-th percentile operator.
+
+\textbf{Purpose:} Erosion removes boundary pixels to mitigate background depth contamination.
+
+\end{document}

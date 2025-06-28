@@ -7,13 +7,6 @@ from PIL.Image import Image
 from .core import DataModel
 
 
-class PipelineIn(DataModel):
-    """Input data for the Dataset stage."""
-
-    idx: int
-    user_prompt: Optional[str] = None
-
-
 class DatasetOut(DataModel):
     """Input data for detection stage."""
 

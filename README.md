@@ -153,9 +153,9 @@ spatial_guidance
     │   │   ├── AABBDetection(DataModel): Object detection with masks
     │   │   └── AABBDetections(DataModel): Collection of AABB detections
     │   ├── core.py
-    │   │   └── DataModel(BaseModel): Base data model class
+    │   │   └── DataModel(BaseModel): Base data contract (interface)
     │   ├── dataset.py
-    │   │   └── DatasetOut(DataModel): Complete dataset frame output
+    │   │   └── DatasetOut(DataModel): Dataset frame output
     │   └── obb_detection.py
     │       ├── RawOBBDetection(DataModel): Raw OBB detection data
     │       ├── OBBDetection(DataModel): 3D oriented bounding boxes
@@ -215,10 +215,10 @@ spatial_guidance
     │   ├── __init__.py
     │   ├── base_config.py
     │   │   ├── NoTarget: Target Type for BaseConfig's w/o target
-    │   │   ├── BaseConfig(BaseModel): Base configuration class
+    │   │   ├── BaseConfig(BaseModel): Base configuration class for Config-as-Factory pattern
     │   │   └── SingletonConfig(BaseConfig): Singleton configuration base
     │   ├── configs.py
-    │   │   └── PathConfig(SingletonConfig): System path configuration
+    │   │   └── PathConfig(SingletonConfig): Path handling
     │   └── console.py
     │       └── Console(RichConsole): Fancy logging
     └── visualization

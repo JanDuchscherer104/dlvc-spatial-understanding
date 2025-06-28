@@ -12,6 +12,7 @@ This project aims to develop an application that provides 3D spatial scene under
 - [Installation](#installation)
 - [API Configuration](#api-configuration)
 - [Dataset Setup](#dataset-setup)
+- [Repository Structure](#repository-structure)
 
 
 ## System Dependencies
@@ -38,8 +39,14 @@ sudo apt install -y pulseaudio pulseaudio-utils
 
 ## Installation
 
+Clone the dlvc-spatial-understanding repository:
+- [GitHub Repository](https://github.com/JanDuchscherer104/dlvc-spatial-understanding)
+- [GitLab Repository](https://gitlab.lrz.de/dlvc04-sose-25/dlvc-04-spatial-understanding)
+
 ```bash
-git clone https://github.com/your-org/dlvc-04-spatial-understanding.git
+git clone git@gitlab.lrz.de:dlvc04-sose-25/dlvc-04-spatial-understanding.git
+# alternatively from GitHub
+# git clone git@github.com:JanDuchscherer104/dlvc-spatial-understanding.git
 cd dlvc-04-spatial-understanding
 
 conda create -n dlvc python=3.11
@@ -118,4 +125,94 @@ class StrayScannerPaths(BaseConfig):
 
 ```bash
 streamlit run spatial_guidance/ui/streamlit_app_live.py
+```
+
+
+# Repository Structure
+
+```
+spatial_guidance
+├── poetry.lock
+├── pyproject.toml
+└── spatial_guidance
+    ├── __init__.py
+    ├── data_contracts
+    │   ├── __init__.py
+    │   ├── aabb_segmentation.py
+    │   │   ├── RawAABBDetSeg: Raw segmentation detection data
+    │   │   ├── AABBDetection: Object detection with masks
+    │   │   └── AABBDetections: Collection of AABB detections
+    │   ├── core.py
+    │   │   └── DataModel: Base data model class
+    │   ├── dataset.py
+    │   │   └── DatasetOut(DataModel): Complete dataset frame output
+    │   └── obb_detection.py
+    │       ├── OBBDetection: 3D oriented bounding boxes
+    │       ├── OBBDetections: Collection of OBB detections
+    │       └── RawOBBDetection: Raw OBB detection data
+    ├── data_handling
+    │   ├── __init__.py
+    │   └── stray_scanner
+    │       ├── __init__.py
+    │       ├── data_parser.py
+    │       │   ├── StrayScannerDataParser: Dataset file parser interface
+    │       │   └── StrayScannerDataParserConfig: Parser configuration settings
+    │       ├── stray_dataset.py
+    │       │   ├── StrayDataset: Main dataset access interface
+    │       │   └── StrayDatasetConfig: Dataset configuration parameters
+    │       └── stray_scanner_paths.py
+    │           └── StrayScannerPaths: File path configuration
+    ├── live_agent
+    │   ├── __init__.py
+    │   ├── actor_protocols.py
+    │   │   ├── AskCmd: Text query command
+    │   │   ├── AudioCmd: Audio input command
+    │   │   ├── AudioEvt: Audio response event
+    │   │   ├── DetectionsEvt: Detection results event
+    │   │   ├── ErrorEvt: Error notification event
+    │   │   ├── SetFrameCmd: Frame selection command
+    │   │   ├── TextEvt: Text response event
+    │   │   ├── _Cmd: Base command protocol
+    │   │   └── _Evt: Base event protocol
+    │   ├── gemini_live_agent.py
+    │   │   └── GeminiLiveAgent: Live audio interaction agent
+    │   ├── live_agent_config.py
+    │   │   └── GeminiLiveAgentConfig: Live agent configuration
+    │   ├── live_agent_enums.py
+    │   │   ├── DirectionalStyle: Direction description style enum
+    │   │   ├── DistanceStyle: Distance description style enum
+    │   │   ├── GenState: Generation state enum
+    │   │   ├── InteractionMode: User interaction mode enum
+    │   │   ├── ModePromptTemplates: Mode-specific prompt templates
+    │   │   ├── OperationalMode: Operation mode enum
+    │   │   └── ResponseStyle: Combined response style configuration
+    │   ├── prompt_templates.py
+    │   │   └── LiveAgentPromptTemplates: System prompt template manager
+    │   └── tools.py
+    │       └── LiveAgentTools: Available tool declarations
+    ├── scene_understanding
+    │   ├── __init__.py
+    │   ├── gemini_aabb_detection.py
+    │   │   ├── GeminiAABBDetSegConfig: AABB detection configuration
+    │   │   └── GeminiAABBDetSeg: AABB detection and segmentation
+    │   └── gemini_obb_detection.py
+    │       ├── GeminiOBBDet: 3D OBB detection system
+    │       └── GeminiOBBDetConfig: OBB detection configuration
+    ├── ui
+    │   ├── __init__.py
+    │   └── streamlit_app_live.py
+    ├── utils
+    │   ├── __init__.py
+    │   ├── base_config.py
+    │   │   ├── BaseConfig: Base configuration class
+    │   │   ├── NoTarget: No-operation target implementation
+    │   │   └── SingletonConfig: Singleton configuration base
+    │   ├── configs.py
+    │   │   └── PathConfig: System path configuration
+    │   └── console.py
+    │       └── Console: Logging and console output
+    └── visualization
+        ├── __init__.py
+        └── detection_visualizer.py
+            └── DetectionVisualizer: Detection result visualization
 ```

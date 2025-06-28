@@ -40,15 +40,18 @@ sudo apt install -y pulseaudio pulseaudio-utils
 
 ```bash
 git clone https://github.com/your-org/dlvc-04-spatial-understanding.git
-cd dlvc-04-spatial-understanding/src/spatial_guidance
+cd dlvc-04-spatial-understanding
 
-conda env create -f environment.yml
+conda create -n dlvc python=3.11
 conda activate dlvc
 ```
 
 ### Poetry Installation
 
 ```bash
+conda install poetry
+cd src/spatial_guidance
+
 poetry install
 
 # Verify installation

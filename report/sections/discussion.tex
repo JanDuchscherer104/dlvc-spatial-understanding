@@ -6,6 +6,51 @@
 % - Performance comparison with existing systems
 % - Strengths and achievements of our approach
 
+% \subsection{Limitations}
+% -
+% % Content about system limitations (Jan)
+
+% \subsubsection{GeminiAABBDetSeg Issues}
+% % Content about AABB detection limitations
+% % - Bad segmentations and their impact
+% % - Hallucinations:
+% %   - Generating base64 strings as text tokens
+% %   - Providing placeholders instead of actual data
+% % - Usually more False Positives (which are more problematic!)
+
+% \subsubsection{LiveAgent Issues}
+% % Content about live agent limitations
+% % - Refuses tool use (e.g., "I cannot detect what I cannot see")
+% % - Communication challenges
+% % - Real-time processing constraints
+% - plenty of computational overhead to the current detection pipeline as many non-essential features are computed and the segmentation masks are plotted in the given rgb frame
+\subsection{Limitations}
+
+% ------------------------------------------------------------------
+\subsubsection{Gemini Image Undertanding}
+\begin{description}
+    \item \textbf{Output stochasticity} -- identical inputs often yield detections of drastically different quality, including boxes, labels and masks.
+    % \item \textbf{Weak depth proxies} -- points sampled inside AABBs frequently hit background pixels, making depth extraction unreliable.
+    \item \textbf{Pointing capabilities} -- Letting Gemini provide a few points in the image plane, rather than a full segmentation mask, might yield significant speed-ups, however, in our experiments, most points fell into the AABBs but not on the object itself. %looked like random guesses inside the AABBs
+    \item \textbf{High false-positive rate} -- segmentation masks often include many false positive pixels, necessitating additonal filtering to extract relevant 3D points.
+    \item \textbf{Invalid or missing segmentation masks} -- Model ``hallucinates'' base64 strings that are \emph{not} valid PNGs (placeholder text e.g. ``\texttt{<segmentation\_mask>...</segmentation\_mask>}'', or generates hallucinated base64 PNG strings as it simply ``guesses'' plausible ASCII characters in the string encoding rather than using its internal segmentation capabilities correctly, resulting in \texttt{MAX\_TOKENS} error, hence MAX\_TOKENS should always be limited appropriately). The guessing behaviour becomes almost certain if the pattern of the expected base64 string is included in the output schema i.e. \texttt{pattern=r"\textasciicircum data:image/png;base64,[A-Za-z0-9+/]+\{0,2\}\$"} or if a term like ``base64'' is included in the system prompt.
+    \item \textbf{Schema-sensitivity} -- larger or nested JSON schemas increase the likelihood of malformed outputs, especially when the model is tasked to predict a segmentation mask.
+    \item \textbf{Prompt brittleness} -- Minor changes in the system instructions or redundancies between system prompt and schema cause unpredictable behaviour~\cite{googleStructuredOutput2025}.
+    \item \textbf{Unstable base64 \( \rightarrow \) PNG generation pipeline} -- conscious model explanation notes it only ``guesses'' plausible byte-strings, not real encodings.
+    \item \textbf{Temperature trade-off} -- lower \(T\) improves JSON validity but worsens segmentation mask quality.
+\end{description}
+
+
+% ------------------------------------------------------------------
+\subsubsection{LiveAgent Issues}
+\begin{description}
+    \item \textbf{Tool refusal} -- answers like ``I cannot detect what I cannot see'' instead of calling the detection tool.
+    \item \textbf{Wrong tool usage} -- the model is instructed to always use cached detections if available, but often it will still use the detection tool instead of the cached results, leading to unnecessary increased latency.
+    \item \textbf{Computational overhead} -- the current pipeline is not optimized for latency, but for experimentation and hence performs many non-esential computations in rather inefficent ways, e.g. the RGB frame is plotted with segmentation masks and many non-essential features computed each frame.
+    \item \textbf{Limited quantitative reasoning} -- We have mostly tested the Agent with \texttt{gemini-2.0-flash-live-001} as the live model. While it can provide simple qualitative descriptions, these are often vague and imprecise and incomplete.
+\end{description}
+
+
 \subsection{Potential Future Work}
 % Content about future improvements
 % - Batched requests for improved efficiency
@@ -14,20 +59,7 @@
 % - Fine-tuning for domain-specific improvements
 % - Tune parameters and (system) prompts for optimization
 % - Implement results into iOS app for mobile deployment
+We have mostly worked with the preview versions of Gemini 2.5 family, however, the final Gemini 2.5 Pro, Flash models and even a new Gemini 2.5 Pro Live model are now available, it would be worthwhile to inspect how these models might have improved over the preview versions.
 
-\subsection{Limitations}
-% Content about system limitations (Jan)
+Fine-tuning of the agentic model and image understanding models might yield significant improvements in their consistency in terms of instruction following. However, we cannot imagine, that fine-tuning the segmentation mask could have any impact as the model has been trained on internet-scale data and we do not assume a significant domain shift between its training data and our use case.In~\cite{googleFinetuning2025} it is mentioned that as little as 20 examples can improve the consistency of the model's responses, to ensure that that either model follows the instructions and satisfies the schema requirements well.
 
-\subsubsection{GeminiAABBDetSeg Issues}
-% Content about AABB detection limitations
-% - Bad segmentations and their impact
-% - Hallucinations:
-%   - Generating base64 strings as text tokens
-%   - Providing placeholders instead of actual data
-% - Usually more False Positives (which are more problematic!)
-
-\subsubsection{LiveAgent Issues}
-% Content about live agent limitations
-% - Refuses tool use (e.g., "I cannot detect what I cannot see")
-% - Communication challenges
-% - Real-time processing constraints

@@ -5,17 +5,17 @@
 %% The original source files were:
 %%
 %% samples.dtx  (with options: `all,proceedings,bibtex,sigconf')
-%%
+%% 
 %% IMPORTANT NOTICE:
-%%
+%% 
 %% For the copyright see the source file.
-%%
+%% 
 %% Any modified versions of this file must be renamed
 %% with new filenames distinct from sample-sigconf.tex.
-%%
+%% 
 %% For distribution of the original source see the terms
 %% for copying and modification in the file samples.dtx.
-%%
+%% 
 %% This generated file may be distributed as long as the
 %% original source files, as listed above, are part of the
 %% same distribution. (The sources need not necessarily be
@@ -51,8 +51,39 @@
   \providecommand\BibTeX{{%
     Bib\TeX}}}
 
-%% Additional packages for subfigures
-\usepackage{subcaption}
+
+
+%%
+%% Submission ID.
+%% Use this when submitting an article to a sponsored event. You'll
+%% receive a unique submission ID from the organizers
+%% of the event, and this ID should be used as the parameter to this command.
+%%\acmSubmissionID{123-A56-BU3}
+
+%%
+%% For managing citations, it is recommended to use bibliography
+%% files in BibTeX format.
+%%
+%% You can then either use BibTeX with the ACM-Reference-Format style,
+%% or BibLaTeX with the acmnumeric or acmauthoryear sytles, that include
+%% support for advanced citation of software artefact from the
+%% biblatex-software package, also separately available on CTAN.
+%%
+%% Look at the sample-*-biblatex.tex files for templates showcasing
+%% the biblatex styles.
+%%
+
+%%
+%% The majority of ACM publications use numbered citations and
+%% references.  The command \citestyle{authoryear} switches to the
+%% "author year" style.
+%%
+%% If you are preparing content for an event
+%% sponsored by ACM SIGGRAPH, you must use the "author year" style of
+%% citations and references.
+%% Uncommenting
+%% the next command will enable that style.
+%%\citestyle{acmauthoryear}
 
 
 %%
@@ -93,26 +124,18 @@
 %%
 %% Keywords. The author(s) should pick words that accurately describe
 %% the work being presented. Separate the keywords with commas.
-\keywords{3D Spatial Understanding, Assistive Technology, Visually Impaired, Gemini,
-Large Language Models (LLMs), Interactive Audio Guidance, Semantic Segmentation, Mobile Navigation,
+\keywords{3D Spatial Understanding, Assistive Technology, Visually Impaired, Gemini, 
+Large Language Models (LLMs), Interactive Audio Guidance, Semantic Segmentation, Mobile Navigation, 
 Human-Computer Interaction (HCI), Obstacle Avoidance}
 
 %% A "teaser" image appears between the author and affiliation
 %% information and the body of the document, and typically spans the
 %% page.
 \begin{teaserfigure}
-  \begin{subfigure}{0.48\textwidth}
-    \includegraphics[width=\textwidth]{figures/ransac.png}
-    \caption{RANSAC ground plane detection for height estimation.}
-    \label{fig:teaser:ransac}
-  \end{subfigure}
-  \hfill
-  \begin{subfigure}{0.48\textwidth}
-    \includegraphics[width=\textwidth]{figures/path_desc.png}
-    \caption{Segmentations of objects relevant for navigating to the entrance of the hair salon.}
-    \label{fig:teaser:path}
-  \end{subfigure}
-  \caption{Overview of our 3D spatial understanding system: (a) Ground plane detection using RANSAC algorithm with object detection and spatial relationships, and (b) Interactive guidance system providing spatial descriptions and navigation assistance.}
+  \includegraphics[width=\textwidth]{sampleteaser}
+  \caption{Seattle Mariners at Spring Training, 2010.}
+  \Description{Enjoying the baseball game from the third-base
+  seats. Ichiro Suzuki preparing to bat.}
   \label{fig:teaser}
 \end{teaserfigure}
 

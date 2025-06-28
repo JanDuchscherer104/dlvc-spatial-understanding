@@ -1,0 +1,435 @@
+@startuml classes
+set namespaceSeparator none
+class "AABBDetection" as src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation.AABBDetection {
+  box_2d : Annotated[np.ndarray, List[int]]
+  center_3d_bbox : Optional[np.ndarray]
+  center_3d_mask : Optional[np.ndarray]
+  center_height_3d : Optional[float]
+  image_center : Optional[np.ndarray]
+  label : str
+  mask : Annotated[Image, str]
+  max_depth : Optional[float]
+  max_height_3d : Optional[float]
+  med_depth : Optional[float]
+  min_depth : Optional[float]
+  processed_ : bool
+  rotation_clock : Optional[int]
+  rotation_deg : Optional[float]
+  process(img_size: Tuple[int, int], confidence_tresh: Optional[float], depth_image: Optional[np.ndarray], camera_intrinsics: Optional[np.ndarray], camera_pose: Optional[np.ndarray], ground_plane: Optional[Tuple[np.ndarray, float]]) -> None
+  validate_box_2d(v: List[int], info: ValidationInfo) -> np.ndarray
+  validate_segmentation_mask(v: str, info: ValidationInfo) -> Image
+}
+class "AABBDetections" as src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation.AABBDetections {
+  objects : Dict[str, AABBDetection]
+  visualization_depth : Optional[Image]
+  visualization_rgb : Optional[Image]
+  add_detection(detection: AABBDetection) -> None
+  as_dict() -> dict[str, AABBDetection]
+  from_dict(detections_dict: dict[str, AABBDetection]) -> 'AABBDetections'
+  from_list(detections_list: list[AABBDetection]) -> 'AABBDetections'
+  get_detection(label: str) -> Optional[AABBDetection]
+  get_labels() -> list[str]
+  has_detection(label: str) -> bool
+  merge_with(other: Self) -> Self
+  process_all(img_size: Tuple[int, int], confidence_thresh: Optional[float], depth_image: Optional[PILImage.Image], camera_intrinsics: Optional[np.ndarray], camera_pose: Optional[np.ndarray], ground_plane: Optional[Tuple[np.ndarray, float]]) -> None
+  remove_detection(label: str) -> bool
+  to_dict() -> dict[str, dict[str, Any]]
+  to_list_dict() -> list[dict[str, Any]]
+  transform_cached_det(det_json: dict[str, Any], pose_from: np.ndarray, pose_to: np.ndarray, console: Optional[Console]) -> Optional[dict[str, Any]]
+}
+class "AskCmd" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.AskCmd {
+  frame_idx : Optional[int]
+  query_id : str
+  text : str
+  timestamp : float
+}
+class "AudioCmd" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.AudioCmd {
+  pcm_data : bytes
+  query_id : str
+  timestamp : float
+}
+class "AudioEvt" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.AudioEvt {
+  audio_data : bytes
+  query_id : Optional[str]
+  response_time_ms : Optional[float]
+}
+class "BaseConfig" as src.spatial_guidance.spatial_guidance.utils.base_config.BaseConfig {
+  model_config
+  propagated_fields : Optional[Dict[str, Any]]
+  protected_fields : Optional[List[str]]
+  target : Optional[Callable[['BaseConfig[TargetType]'], TargetType]]
+  inspect(show_docs: bool) -> None
+  setup_target() -> TargetType
+}
+class "Console" as src.spatial_guidance.spatial_guidance.utils.console.Console {
+  default_sttings : dict
+  is_debug : bool
+  is_verbose
+  prefix : Optional[str]
+  show_timestamps : bool
+  verbose : bool
+  dbg(message: str) -> None
+  error(exception: Exception, message: Optional[str]) -> None
+  log(message: str) -> None
+  plog(obj: Any, title: Optional[str]) -> None
+  print_instructions(instructions: str) -> None
+  print_schema(schema_json: str) -> None
+  set_debug(is_debug: bool) -> 'Console'
+  set_prefix() -> 'Console'
+  set_timestamp_display(show_timestamps: bool) -> 'Console'
+  set_verbose(verbose: bool) -> 'Console'
+  unset_prefix() -> 'Console'
+  warn(message: str) -> None
+  with_prefix() -> 'Console'
+}
+class "DataModel" as src.spatial_guidance.spatial_guidance.data_contracts.core.DataModel {
+  model_config
+  get_json_schema(with_examples: bool, as_list: bool, min_length: Optional[int], max_length: Optional[int]) -> Dict[str, Any]
+  get_output_instructions(with_examples: bool, as_list: bool, min_length: Optional[int], max_length: Optional[int], readable: bool) -> str
+  parse_json_list(json_output: str, console: Optional[Console]) -> list[Self]
+}
+class "DatasetOut" as src.spatial_guidance.spatial_guidance.data_contracts.dataset.DatasetOut {
+  camera_intrinsics : ndarray
+  camera_pose : ndarray
+  depth_image : Image
+  ground_plane : Optional[Tuple[np.ndarray, float]]
+  idx : int
+  rgb_image : Image
+  rel_move_description(other: 'DatasetOut', idx_self: int, idx_other: int) -> Optional[str]
+}
+class "DetectionVisualizer" as src.spatial_guidance.spatial_guidance.visualization.detection_visualizer.DetectionVisualizer {
+  create_ground_plane_polygon_simple(normal, d, K, image_shape, center_x, center_y, scale_x, scale_y)
+  plot_ground_plane_on_rgb(frame_data)
+  print_3d_summary(detections: AABBDetections) -> None
+  visualize_3d_boxes(pil_image: PILImage.Image, obb_detections: OBBDetections, fov: float, zoom: float, figsize: tuple, ego_marker_size: float, show_grid: bool, use_distinct_bbox_colors: bool, verbose_labels: bool, add_labels: bool)
+  visualize_depth_detections(depth_image_pil: PILImage.Image, detections: AABBDetections, img_width: int, img_height: int, line_width: int, font_size: int, show_3d_info: bool) -> PILImage.Image
+  visualize_rgb_detections(img: PILImage.Image, detections: AABBDetections, alpha: float, show_boxes: bool, line_width: int, font_size: int, show_3d_info: bool) -> PILImage.Image
+}
+class "DetectionsEvt" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.DetectionsEvt {
+  detections
+  frame_idx : int
+  query_id : Optional[str]
+  response_time_ms : Optional[float]
+}
+class "DirectionalStyle" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.DirectionalStyle {
+  name
+  examples()
+  prompt()
+}
+class "DistanceStyle" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.DistanceStyle {
+  name
+  examples()
+  prompt()
+}
+class "ErrorEvt" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.ErrorEvt {
+  error : str
+  query_id : Optional[str]
+  response_time_ms : Optional[float]
+}
+class "GeminiAABBDetSeg" as src.spatial_guidance.spatial_guidance.scene_understanding.gemini_aabb_detection.GeminiAABBDetSeg {
+  config
+  visualizer
+  run_aabb_detection(input_data: DatasetOut, user_prompt: Optional[str], detection_mode: Optional[str]) -> Annotated[AABBDetections, 'Detection-Results']
+}
+class "GeminiAABBDetSegConfig" as src.spatial_guidance.spatial_guidance.scene_understanding.gemini_aabb_detection.GeminiAABBDetSegConfig {
+  base_system_prompt : str
+  candidate_count : Optional[int]
+  category_detection_prompts : Optional[dict[str, str]]
+  full_detection_prompt : str
+  is_debug : bool
+  mask_confidence_threshold : Optional[float]
+  max_objects : int
+  model_name : Literal['gemini-2.5-flash-preview-05-20', 'gemini-2.5-pro-preview-05-06']
+  path_description_prompt : str
+  resize : Optional[Tuple[int, int]]
+  safety_settings : Optional[List[Tuple[str, str]]]
+  show_3d_info_in_visualization : bool
+  show_boxes_in_visualization : bool
+  subset_detection_prompt : str
+  target : Optional[Type['GeminiAABBDetSeg']]
+  temperature : Optional[float]
+  top_k : Optional[int]
+  top_p : Optional[float]
+  visualize_depth : bool
+  visualize_rgb : bool
+  get_generation_config() -> types.GenerateContentConfig
+}
+class "GeminiLiveAgent" as src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent.GeminiLiveAgent {
+  aabb_detector : GeminiAABBDetSeg
+  actor_thread : Optional[threading.Thread]
+  audio_in_queue : Optional[asyncio.Queue[bytes]]
+  audio_stream : Optional[pyaudio.Stream]
+  config
+  console
+  current_frame : Optional[DatasetOut]
+  current_frame_idx : int
+  dataset
+  detection_callback : Callable[[int, Any], None]
+  in_q : Queue[_Cmd]
+  last_frame_idx : Optional[int]
+  live_client : Client
+  loop : Optional[asyncio.AbstractEventLoop]
+  out_q : Queue[_Evt]
+  out_queue : Optional[asyncio.Queue[dict[str, Any]]]
+  pya : NoneType, Optional[pyaudio.PyAudio]
+  session : NoneType, Optional[AsyncSession]
+  ask(text: str, frame_idx: Optional[int])
+  next_event() -> Optional[_Evt]
+  push_audio(pcm_data: bytes)
+  set_current_frame(frame_idx: int)
+  set_detection_callback(callback: Callable[[int, Any], None])
+  update_aabb_detector(model_name: str)
+  update_dataset(dataset_dir: Optional[Path], is_rotated: Optional[bool])
+  update_interaction_mode(interaction_mode: Optional[InteractionMode])
+  update_response_style(dir_style: DirectionalStyle, dist_style: DistanceStyle)
+}
+class "GeminiLiveAgentConfig" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_config.GeminiLiveAgentConfig {
+  channels : int
+  chunk_size : int
+  dataset : Optional[StrayDatasetConfig]
+  enable_code_execution : bool
+  format : int
+  gemini_aabb_detseg
+  http_options : HttpOptions
+  interaction_mode
+  is_debug : bool
+  live_model : Literal['gemini-2.0-flash-live-001']
+  live_model_config : LiveConnectConfig
+  num_detseg_attempts : int
+  receive_sample_rate : int
+  response_style : ResponseStyle
+  send_sample_rate : int
+  system_instruction : Annotated[str, Field(default=LiveAgentPromptTemplates)]
+  system_instruction_template : Optional[Type[LiveAgentPromptTemplates]]
+  target : Optional[Type['GeminiLiveAgent']]
+  tools : Annotated[List[types.Tool], Field(default_factory=lambda: LiveAgentTools())]
+  make_system_instruction(prompt_cls: LiveAgentPromptTemplates, info: ValidationInfo) -> str
+  make_tools(tools: LiveAgentTools, info: ValidationInfo) -> list[types.Tool]
+  share_fields() -> Self
+  validate_live_model_config() -> 'GeminiLiveAgentConfig'
+}
+class "GeminiOBBDet" as src.spatial_guidance.spatial_guidance.scene_understanding.gemini_obb_detection.GeminiOBBDet {
+  config
+  visualizer
+  entrypoint(input_data: DatasetOut, aabb_detections: Optional[OBBDetections]) -> Annotated[OBBDetections, '3D-OBB-Detection-Results']
+}
+class "GeminiOBBDetConfig" as src.spatial_guidance.spatial_guidance.scene_understanding.gemini_obb_detection.GeminiOBBDetConfig {
+  base_system_prompt : str
+  candidate_count : Optional[int]
+  max_objects : int
+  model_name : Literal['gemini-2.0-flash', 'gemini-2.5-flash-preview-05-20', 'gemini-2.5-pro-preview-05-06']
+  safety_settings : Optional[List[Tuple[str, str]]]
+  target : Optional[Type['GeminiOBBDet']]
+  temperature : Optional[float]
+  top_k : Optional[int]
+  top_p : Optional[float]
+  use_camera_pose : bool
+  get_generation_config() -> types.GenerateContentConfig
+}
+class "GenState" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.GenState {
+  name
+}
+class "InteractionMode" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.InteractionMode {
+  name
+}
+class "LiveAgentPromptTemplates" as src.spatial_guidance.spatial_guidance.live_agent.prompt_templates.LiveAgentPromptTemplates {
+  CODE_EXECUTION : Optional[str]
+  FRAME_CHANGE_PROMPT_TEMPLATE : Optional[str]
+  SYS_PROMPT_TEMPLATE : Optional[str]
+  make_prompt(response_style: ResponseStyle, enable_code_execution: bool) -> str
+}
+class "LiveAgentTools" as src.spatial_guidance.spatial_guidance.live_agent.tools.LiveAgentTools {
+  get_last_detections : Optional[FunctionDeclaration]
+  run_aabb_detection : Optional[FunctionDeclaration]
+  make_info(tools: list[Tool]) -> dict[str, Any]
+  setup_target(has_code_execution: bool) -> list[Tool]
+}
+class "ModePromptTemplates" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.ModePromptTemplates {
+  TEMPLATES : dict
+}
+class "NoTarget" as src.spatial_guidance.spatial_guidance.utils.base_config.NoTarget {
+  setup_target(config: 'BaseConfig') -> None
+}
+class "OBBDetection" as src.spatial_guidance.spatial_guidance.data_contracts.obb_detection.OBBDetection {
+  bev_area : Optional[float]
+  bev_footprint : Optional[np.ndarray]
+  bev_xlim : Optional[List[float]]
+  bev_ylim : Optional[List[float]]
+  box_3d : List[float]
+  center_distance : Optional[float]
+  center_point : Optional[np.ndarray]
+  euler_matrix : Optional[np.ndarray]
+  height : Optional[float]
+  label : str
+  obb_vertices_2d : Optional[np.ndarray]
+  obb_vertices_3d : Optional[np.ndarray]
+  obb_vertices_depth : Optional[np.ndarray]
+  processed_ : Optional[bool]
+  calculate_intrinsic_fields() -> 'OBBDetection'
+  process(img_size: Tuple[int, int], camera_intrinsics: np.ndarray, camera_pose: Optional[np.ndarray]) -> None
+  project_to_image(K: np.ndarray)
+  vertices_from_box3d() -> np.ndarray
+}
+class "OBBDetections" as src.spatial_guidance.spatial_guidance.data_contracts.obb_detection.OBBDetections {
+  bev_center_x : Optional[float]
+  bev_center_y : Optional[float]
+  bev_height : Optional[float]
+  bev_width : Optional[float]
+  objects : Optional[List[OBBDetection]]
+  visualization : Optional[Any]
+  process_all(img_size: Tuple[int, int], camera_intrinsics: np.ndarray, camera_pose: Optional[np.ndarray])
+  to_boxes_json() -> List[dict]
+  visualize_3d_boxes(pil_image: Image.Image, fov: float, zoom: float, figsize: tuple, ego_marker_size: float, show_grid: bool, use_distinct_bbox_colors: bool)
+}
+class "OperationalMode" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.OperationalMode {
+  name
+}
+class "PathConfig" as src.spatial_guidance.spatial_guidance.utils.configs.PathConfig {
+  data : Annotated[Path, Field(default='.data/SmartAIs-Recorded-Data')]
+  env_file : Annotated[Path, Field(default='.env')]
+  root : Optional[Path]
+  convert_to_path(v: str | Path, info: ValidationInfo) -> Path
+  get_api_key(key_name: Union[Literal['GOOGLE_API_KEY'], str]) -> Optional[str]
+}
+class "PipelineIn" as src.spatial_guidance.spatial_guidance.data_contracts.dataset.PipelineIn {
+  idx : int
+  user_prompt : Optional[str]
+}
+class "RawAABBDetSeg" as src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation.RawAABBDetSeg {
+  box_2d : Optional[List[int]]
+  label : Optional[str]
+  mask : Optional[str]
+}
+class "RawOBBDetection" as src.spatial_guidance.spatial_guidance.data_contracts.obb_detection.RawOBBDetection {
+  box_3d : Annotated[List[float], Field(..., description='Accurate 3D bounding box parameters: [x_center, y_center, z_center, x_size, y_size, z_size, roll, pitch, yaw].', min_length=9, max_length=9)]
+  label : Optional[str]
+}
+class "ResponseStyle" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.ResponseStyle {
+  dir_style
+  dist_style
+  examples() -> str
+  prompt() -> str
+}
+class "SetFrameCmd" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.SetFrameCmd {
+  frame_idx : int
+  query_id : str
+  timestamp : float
+}
+class "SingletonConfig" as src.spatial_guidance.spatial_guidance.utils.base_config.SingletonConfig {
+  model_config
+}
+class "StrayDataset" as src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_dataset.StrayDataset {
+  config
+  parser
+  detect_ground_plane_for_frame(idx: int) -> Optional[Tuple[np.ndarray, float]]
+  get_depth(idx: int) -> np.ndarray
+  get_imu_data() -> Optional[np.ndarray]
+  get_poses(idx: Optional[int]) -> List[np.ndarray]
+  get_rgb(idx: int) -> Image.Image
+  get_rgb_dimensions() -> Tuple[int, int]
+  get_scaled_intrinsics(target_width: int, target_height: int) -> np.ndarray
+}
+class "StrayDatasetConfig" as src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_dataset.StrayDatasetConfig {
+  auto_scale_poses : bool
+  confidence_threshold : int
+  data_parser : Optional[StrayScannerDataParserConfig]
+  depth_unit_scale_factor : float
+  detect_ground_plane : bool
+  ground_plane_distance_threshold : float
+  ground_plane_max_iterations : int
+  ground_plane_use_world_coords : bool
+  ground_plane_voxel_size : float
+  is_debug : bool
+  is_rotated : bool
+  resize_depth_to_rgb : bool
+  scale_factor : float
+  target : Optional[Type['StrayDataset']]
+  setup_target() -> 'StrayDataset'
+}
+class "StrayScannerDataParser" as src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.data_parser.StrayScannerDataParser {
+  config
+  get_available_rgb_frames() -> List[Path]
+  get_depth_frame(idx: int) -> np.ndarray
+  get_depth_frames() -> List[Path]
+  get_frame_count() -> int
+  get_imu_data() -> Optional[np.ndarray]
+  get_intrinsics() -> np.ndarray
+  get_pose(idx: int) -> np.ndarray
+  get_poses() -> List[np.ndarray]
+  get_rgb_frames() -> List[Path]
+  get_rgb_rotated_frames() -> List[Path]
+}
+class "StrayScannerDataParserConfig" as src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.data_parser.StrayScannerDataParserConfig {
+  depth_unit_scale_factor : float
+  paths : Optional[StrayScannerPaths]
+  target : Optional[Type['StrayScannerDataParser']]
+}
+class "StrayScannerPaths" as src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_scanner_paths.StrayScannerPaths {
+  camera_matrix_filename : str
+  confidence_dir : str
+  confidence_extension : str
+  dataset_dir : Annotated[Path, Field(default='store_entrance')]
+  depth_dir : str
+  depth_extension : str
+  imu_filename : str
+  odometry_filename : str
+  rgb_dir : str
+  rgb_extension : str
+  rgb_rotated_dir : str
+  rgb_video_filename : str
+  get_camera_matrix_path() -> Path
+  get_confidence_dir() -> Path
+  get_depth_dir() -> Path
+  get_imu_path() -> Path
+  get_odometry_path() -> Path
+  get_rgb_dir() -> Path
+  get_rgb_rotated_dir() -> Path
+  get_rgb_video_path() -> Path
+  validate() -> Self
+  validate_dataset_dir(v: str | Path, info: ValidationInfo) -> Path
+}
+class "TextEvt" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.TextEvt {
+  query_id : Optional[str]
+  response_time_ms : Optional[float]
+  text : str
+}
+class "_Cmd" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols._Cmd {
+  query_id : str
+  timestamp
+}
+class "_Evt" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols._Evt {
+}
+src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation.AABBDetection --|> src.spatial_guidance.spatial_guidance.data_contracts.core.DataModel
+src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation.AABBDetections --|> src.spatial_guidance.spatial_guidance.data_contracts.core.DataModel
+src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation.RawAABBDetSeg --|> src.spatial_guidance.spatial_guidance.data_contracts.core.DataModel
+src.spatial_guidance.spatial_guidance.data_contracts.dataset.DatasetOut --|> src.spatial_guidance.spatial_guidance.data_contracts.core.DataModel
+src.spatial_guidance.spatial_guidance.data_contracts.dataset.PipelineIn --|> src.spatial_guidance.spatial_guidance.data_contracts.core.DataModel
+src.spatial_guidance.spatial_guidance.data_contracts.obb_detection.OBBDetection --|> src.spatial_guidance.spatial_guidance.data_contracts.core.DataModel
+src.spatial_guidance.spatial_guidance.data_contracts.obb_detection.OBBDetections --|> src.spatial_guidance.spatial_guidance.data_contracts.core.DataModel
+src.spatial_guidance.spatial_guidance.data_contracts.obb_detection.RawOBBDetection --|> src.spatial_guidance.spatial_guidance.data_contracts.core.DataModel
+src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_scanner_paths.StrayScannerPaths --|> src.spatial_guidance.spatial_guidance.utils.base_config.BaseConfig
+src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.AskCmd --|> src.spatial_guidance.spatial_guidance.live_agent.actor_protocols._Cmd
+src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.AudioCmd --|> src.spatial_guidance.spatial_guidance.live_agent.actor_protocols._Cmd
+src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.AudioEvt --|> src.spatial_guidance.spatial_guidance.live_agent.actor_protocols._Evt
+src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.DetectionsEvt --|> src.spatial_guidance.spatial_guidance.live_agent.actor_protocols._Evt
+src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.ErrorEvt --|> src.spatial_guidance.spatial_guidance.live_agent.actor_protocols._Evt
+src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.SetFrameCmd --|> src.spatial_guidance.spatial_guidance.live_agent.actor_protocols._Cmd
+src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.TextEvt --|> src.spatial_guidance.spatial_guidance.live_agent.actor_protocols._Evt
+src.spatial_guidance.spatial_guidance.live_agent.prompt_templates.LiveAgentPromptTemplates --|> src.spatial_guidance.spatial_guidance.utils.base_config.BaseConfig
+src.spatial_guidance.spatial_guidance.live_agent.tools.LiveAgentTools --|> src.spatial_guidance.spatial_guidance.utils.base_config.BaseConfig
+src.spatial_guidance.spatial_guidance.utils.base_config.SingletonConfig --|> src.spatial_guidance.spatial_guidance.utils.base_config.BaseConfig
+src.spatial_guidance.spatial_guidance.utils.configs.PathConfig --|> src.spatial_guidance.spatial_guidance.utils.base_config.SingletonConfig
+src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation.AABBDetections --* src.spatial_guidance.spatial_guidance.live_agent.actor_protocols.DetectionsEvt : detections
+src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_dataset.StrayDatasetConfig --* src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_dataset.StrayDataset : config
+src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.DirectionalStyle --* src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.ResponseStyle : dir_style
+src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.DistanceStyle --* src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.ResponseStyle : dist_style
+src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums.InteractionMode --* src.spatial_guidance.spatial_guidance.live_agent.live_agent_config.GeminiLiveAgentConfig : interaction_mode
+src.spatial_guidance.spatial_guidance.scene_understanding.gemini_aabb_detection.GeminiAABBDetSegConfig --* src.spatial_guidance.spatial_guidance.live_agent.live_agent_config.GeminiLiveAgentConfig : gemini_aabb_detseg
+src.spatial_guidance.spatial_guidance.scene_understanding.gemini_aabb_detection.GeminiAABBDetSegConfig --* src.spatial_guidance.spatial_guidance.scene_understanding.gemini_aabb_detection.GeminiAABBDetSeg : config
+src.spatial_guidance.spatial_guidance.scene_understanding.gemini_obb_detection.GeminiOBBDetConfig --* src.spatial_guidance.spatial_guidance.scene_understanding.gemini_obb_detection.GeminiOBBDet : config
+src.spatial_guidance.spatial_guidance.utils.console.Console --* src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent.GeminiLiveAgent : console
+src.spatial_guidance.spatial_guidance.visualization.detection_visualizer.DetectionVisualizer --* src.spatial_guidance.spatial_guidance.scene_understanding.gemini_aabb_detection.GeminiAABBDetSeg : visualizer
+src.spatial_guidance.spatial_guidance.visualization.detection_visualizer.DetectionVisualizer --* src.spatial_guidance.spatial_guidance.scene_understanding.gemini_obb_detection.GeminiOBBDet : visualizer
+src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.data_parser.StrayScannerDataParserConfig --o src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.data_parser.StrayScannerDataParser : config
+src.spatial_guidance.spatial_guidance.live_agent.live_agent_config.GeminiLiveAgentConfig --o src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent.GeminiLiveAgent : config
+@enduml

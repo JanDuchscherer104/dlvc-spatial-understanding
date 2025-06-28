@@ -1,0 +1,86 @@
+@startuml packages
+set namespaceSeparator none
+package "src.spatial_guidance.spatial_guidance" as src.spatial_guidance.spatial_guidance {
+}
+package "src.spatial_guidance.spatial_guidance.data_contracts" as src.spatial_guidance.spatial_guidance.data_contracts {
+}
+package "src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation" as src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation {
+}
+package "src.spatial_guidance.spatial_guidance.data_contracts.core" as src.spatial_guidance.spatial_guidance.data_contracts.core {
+}
+package "src.spatial_guidance.spatial_guidance.data_contracts.dataset" as src.spatial_guidance.spatial_guidance.data_contracts.dataset {
+}
+package "src.spatial_guidance.spatial_guidance.data_contracts.obb_detection" as src.spatial_guidance.spatial_guidance.data_contracts.obb_detection {
+}
+package "src.spatial_guidance.spatial_guidance.data_handling" as src.spatial_guidance.spatial_guidance.data_handling {
+}
+package "src.spatial_guidance.spatial_guidance.data_handling.stray_scanner" as src.spatial_guidance.spatial_guidance.data_handling.stray_scanner {
+}
+package "src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.data_parser" as src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.data_parser {
+}
+package "src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_dataset" as src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_dataset {
+}
+package "src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_scanner_paths" as src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_scanner_paths {
+}
+package "src.spatial_guidance.spatial_guidance.live_agent" as src.spatial_guidance.spatial_guidance.live_agent {
+}
+package "src.spatial_guidance.spatial_guidance.live_agent.actor_protocols" as src.spatial_guidance.spatial_guidance.live_agent.actor_protocols {
+}
+package "src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent" as src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent {
+}
+package "src.spatial_guidance.spatial_guidance.live_agent.live_agent_config" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_config {
+}
+package "src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums" as src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums {
+}
+package "src.spatial_guidance.spatial_guidance.live_agent.prompt_templates" as src.spatial_guidance.spatial_guidance.live_agent.prompt_templates {
+}
+package "src.spatial_guidance.spatial_guidance.live_agent.tools" as src.spatial_guidance.spatial_guidance.live_agent.tools {
+}
+package "src.spatial_guidance.spatial_guidance.scene_understanding" as src.spatial_guidance.spatial_guidance.scene_understanding {
+}
+package "src.spatial_guidance.spatial_guidance.scene_understanding.gemini_aabb_detection" as src.spatial_guidance.spatial_guidance.scene_understanding.gemini_aabb_detection {
+}
+package "src.spatial_guidance.spatial_guidance.scene_understanding.gemini_obb_detection" as src.spatial_guidance.spatial_guidance.scene_understanding.gemini_obb_detection {
+}
+package "src.spatial_guidance.spatial_guidance.ui" as src.spatial_guidance.spatial_guidance.ui {
+}
+package "src.spatial_guidance.spatial_guidance.ui.streamlit_app_live" as src.spatial_guidance.spatial_guidance.ui.streamlit_app_live {
+}
+package "src.spatial_guidance.spatial_guidance.utils" as src.spatial_guidance.spatial_guidance.utils {
+}
+package "src.spatial_guidance.spatial_guidance.utils.base_config" as src.spatial_guidance.spatial_guidance.utils.base_config {
+}
+package "src.spatial_guidance.spatial_guidance.utils.configs" as src.spatial_guidance.spatial_guidance.utils.configs {
+}
+package "src.spatial_guidance.spatial_guidance.utils.console" as src.spatial_guidance.spatial_guidance.utils.console {
+}
+package "src.spatial_guidance.spatial_guidance.visualization" as src.spatial_guidance.spatial_guidance.visualization {
+}
+package "src.spatial_guidance.spatial_guidance.visualization.detection_visualizer" as src.spatial_guidance.spatial_guidance.visualization.detection_visualizer {
+}
+src.spatial_guidance.spatial_guidance.data_contracts --> src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation
+src.spatial_guidance.spatial_guidance.data_contracts --> src.spatial_guidance.spatial_guidance.data_contracts.core
+src.spatial_guidance.spatial_guidance.data_contracts.aabb_segmentation --> src.spatial_guidance.spatial_guidance.data_contracts.core
+src.spatial_guidance.spatial_guidance.data_contracts.dataset --> src.spatial_guidance.spatial_guidance.data_contracts.core
+src.spatial_guidance.spatial_guidance.data_contracts.obb_detection --> src.spatial_guidance.spatial_guidance.data_contracts.core
+src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.data_parser --> src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_scanner_paths
+src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.stray_dataset --> src.spatial_guidance.spatial_guidance.data_handling.stray_scanner.data_parser
+src.spatial_guidance.spatial_guidance.live_agent --> src.spatial_guidance.spatial_guidance.live_agent.actor_protocols
+src.spatial_guidance.spatial_guidance.live_agent --> src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent
+src.spatial_guidance.spatial_guidance.live_agent --> src.spatial_guidance.spatial_guidance.live_agent.live_agent_config
+src.spatial_guidance.spatial_guidance.live_agent --> src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums
+src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent --> src.spatial_guidance.spatial_guidance.live_agent.actor_protocols
+src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent --> src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums
+src.spatial_guidance.spatial_guidance.live_agent.live_agent_config --> src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent
+src.spatial_guidance.spatial_guidance.live_agent.live_agent_config --> src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums
+src.spatial_guidance.spatial_guidance.live_agent.live_agent_config --> src.spatial_guidance.spatial_guidance.live_agent.prompt_templates
+src.spatial_guidance.spatial_guidance.live_agent.live_agent_config --> src.spatial_guidance.spatial_guidance.live_agent.tools
+src.spatial_guidance.spatial_guidance.live_agent.prompt_templates --> src.spatial_guidance.spatial_guidance.live_agent.live_agent_enums
+src.spatial_guidance.spatial_guidance.utils --> src.spatial_guidance.spatial_guidance.utils.base_config
+src.spatial_guidance.spatial_guidance.utils --> src.spatial_guidance.spatial_guidance.utils.configs
+src.spatial_guidance.spatial_guidance.utils --> src.spatial_guidance.spatial_guidance.utils.console
+src.spatial_guidance.spatial_guidance.utils.base_config --> src.spatial_guidance.spatial_guidance.utils.console
+src.spatial_guidance.spatial_guidance.utils.configs --> src.spatial_guidance.spatial_guidance.utils.base_config
+src.spatial_guidance.spatial_guidance.utils.configs --> src.spatial_guidance.spatial_guidance.utils.console
+src.spatial_guidance.spatial_guidance.live_agent.gemini_live_agent ..> src.spatial_guidance.spatial_guidance.live_agent.live_agent_config
+@enduml

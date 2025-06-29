@@ -33,6 +33,8 @@
 
 \section{Sample Results}
 
+\subsubsection*{AABB Detection \& Pointing}
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.7\linewidth]{figures/aabb_det_w_points.png}
@@ -40,7 +42,9 @@
     \label{fig:aabb-points}
 \end{figure}
 
-\autoref{fig:aabb-points} shows relatively good AABB detections using Gemini 2.0. Instead of requesting full segmentation masks, the model was asked to provide representative points within bounding boxes. While this approach could offer speed advantages, the resulting points often fell randomly within the boxes and not necessarily on the object itself, rendering the output largely unusable. It remains to be seen whether Gemini 2.5 improves this behavior.
+\autoref{fig:aabb-points} shows relatively good AABB detections using Gemini 2.0. Instead of requesting full segmentation masks, the model was asked to provide representative points within bounding boxes. While this approach could offer speed advantages, the resulting points often fell randomly within the boxes and not necessarily on the object itself, rendering the output largely unusable. It remains to be seen whether Gemini 2.5 improves this behavior.\\
+
+\subsubsection*{Lack of Hazard Awareness}
 
 \begin{figure}[H]
     \centering
@@ -49,8 +53,17 @@
     \label{fig:car-miss}
 \end{figure}
 
-In \autoref{fig:car-miss}, the \texttt{gemini-2.0-flash-live-001} model was prompted to describe obstacles in the scene. It mentioned the cobblestone surface, parked motorcycles, and signage but entirely missed a critical hazard: the silver car directly in front of the user. Although the car appears stationary, its close proximity and potential motion present a major risk. This failure highlights a significant limitation in the hazard awareness of the lightweight live model variant.
+\begin{quote}
+\textbf{User}: What are you seeing?\\
+\textbf{Agent}: I see a cobblestone street with a silver car partially visible on the right. A yellow building is on the corner with a street sign that reads ``Werneck Str.'' There is a bicycle leaning against the wall near the corner. A red scooter and other parked motorcycles are further down the street on the left. Be careful of the uneven cobblestone road surface.\\[2pt]
+\hfill\textit{Run-time: 862\,ms}
+\end{quote}
 
+
+In \autoref{fig:car-miss}, the \texttt{gemini-2.0-flash-live-001} model was prompted to describe obstacles in the scene. It mentioned the cobblestone surface, parked motorcycles, and signage but entirely missed a critical hazard: the silver car directly in front of the user. Although the car appears stationary, its close proximity and potential motion present a major risk. This failure highlights a significant limitation in the hazard awareness of the lightweight live model variant.\\
+
+
+\subsubsection*{Path Description}
 
 \begin{figure}[H]
     \centering
@@ -64,8 +77,9 @@ In \autoref{fig:car-miss}, the \texttt{gemini-2.0-flash-live-001} model was prom
 \begin{quote}
 \textbf{User}: How to get to the hair salon?\\
 \textbf{Agent}: The entrance to the hair salon is 11.0 meters away at 1 o'clock. To get there, walk straight ahead, passing an electric scooter parked on the walkway at 12 o'clock, 6.8 meters away. Then, walk around a bicycle leaning against a tree at 1 o'clock, 4.7 meters away. Be careful of the tree trunk on the right side of the walkway at 1 o'clock, 3.4 meters away. Also, watch out for a metal grate in the walkway at 1 o'clock, 4.5 meters away. After passing these obstacles, you will arrive at the glass entrance door to the hair salon.
+\hfill\textit{Run-time: 4095\,ms}
 \end{quote}
 
 The response was generated in approximately \textbf{4095ms}, which is notably fast and highlights the high variance in latency due to upstream API variability rather than our processing pipeline which should induce a consistent latency.
 
-While the output demonstrates the model's capacity for spatial reasoning, several limitations were evident. First, the mentioned obstacles were not ordered by increasing distance, reducing navigational clarity. Second, the Gemini 2.5 hallucinated a metal grate that was not present in the scene. Finally, it failed to identify a garbage bin located at around 1 o'clock.
+While the output demonstrates the model's capacity for spatial reasoning, several limitations were evident. First, the mentioned obstacles were not ordered by increasing distance, reducing navigational clarity. Second, the Gemini 2.5 hallucinated a metal grate that was not present in the scene. Finally, it failed to identify a garbage bin located at around 1 o'clock.\\

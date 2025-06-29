@@ -55,9 +55,28 @@
 \usepackage{subcaption}
 \usepackage{algorithm}
 \usepackage{algorithmic}
+\usepackage{booktabs}
 
 
 %%
+%% Mathematical notation - centralized symbol definitions
+%%
+
+% Notation commands
+\newcommand{\notation}[2]{\ensuremath{#1} & #2 \\}
+\newcommand{\hatv}[1]{\hat{\boldsymbol{#1}}} % Unit vectors/normalized tensors
+
+% Commonly used symbols
+\newcommand{\I}{\mathbf{I}}                   % RGB image
+\newcommand{\Z}{\mathbf{Z}}                   % Depth map
+\newcommand{\K}{\mathbf{K}}                   % Camera intrinsics matrix
+\newcommand{\T}{\mathbf{T}}                   % Transformation matrix
+\newcommand{\Ms}{\mathbf{M}_s}                % Segmentation mask
+\newcommand{\bbox}{\mathbf{b}}                % Bounding box
+\newcommand{\nhat}{\hatv{n}}                % Ground plane normal (unit vector)
+\newcommand{\D}{\mathbf{D}}                   % Depth values
+\newcommand{\Pcloud}{\mathbf{P}}              % Point cloud
+
 %% end of the preamble, start of the body of the document source.
 \begin{document}
 
@@ -150,6 +169,39 @@ To Tobias, for his support and guidance throughout this project.
 \input{sections/appendix}
 
 \appendix
+
+%%
+%% Notation table
+%%
+\section*{Notation}
+\begin{table}[h]
+\centering
+\caption{Mathematical notation used throughout this paper.}
+\label{tab:notation}
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+\notation{\I}{RGB image}
+\notation{\Z}{Depth map}
+\notation{\K}{Camera intrinsics matrix (3 \( \times \) 3)}
+\notation{\T_{WC}}{Camera-to-world transformation matrix (4 \( \times \) 4)}
+\notation{\T_{rel}}{Relative transformation matrix}
+\notation{\bbox}{Bounding box coordinates}
+\notation{\Ms}{Segmentation mask}
+\notation{\nhat}{Ground plane normal vector (unit)}
+\notation{d}{Ground plane distance parameter}
+\notation{\D}{Set of depth values}
+\notation{\Pcloud}{3D point cloud}
+\notation{\mathbf{p}_c}{3D point in camera coordinates}
+\notation{\mathbf{X}_w}{3D point in world coordinates}
+\notation{\boldsymbol{t}_{rel}}{Relative translation vector}
+\notation{i}{Frame index}
+\notation{h}{Clock hour / object height}
+\notation{\theta, \alpha, \psi}{Rotation angles}
+\bottomrule
+\end{tabular}
+\end{table}
 
 \end{document}
 \endinput

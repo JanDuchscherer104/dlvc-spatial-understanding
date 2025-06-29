@@ -1,51 +1,207 @@
 \section{Concept}
 
-\subsection{System Architecture}
-% Content about system architecture (Jan)
-% - Sequence diagram to explain different use cases/data flow in the application
-% - How we use Live API, Gemini Pro, etc.
-% - Overall system design and components
 
-\subsection{Core Features}
+\subsection{Spatial Processing Pipeline}
 
-\subsubsection{Full Scene Description}
-% Content about comprehensive scene understanding and description
-% - Scene analysis approach
-% - Information extraction methods
-% - Description generation
+The following steps describe how a single RGB-D frame is transformed into structured 3D detections that can be used for navigation.
 
-\subsubsection{Spatial Information on Individual Objects}
-% Content about object-level spatial processing
-% - Rotation: Object orientation detection
-% - Depth: Distance measurements
-% - 3D Points: Spatial coordinate calculation
-% - Erosion: Image processing techniques
-% - MAD: Median Absolute Deviation calculations
+\subsubsection{Dataset Loader}
+The \texttt{StrayDataset} provides frames through its \texttt{\_{}\_{}getitem\_{}\_} method. It loads the RGB image \(\I\), the depth map \(\Z\), adapts the intrinsics \(\K\), retrieves the camera pose \(\T_{WC}\) and optionally estimates the ground plane \((\nhat,d)\). The fields are returned in a \texttt{DatasetOut} structure.
 
-\subsection{Advanced Spatial Processing}
+\begin{algorithm}[H]
+\caption{Dataset Loader}
+\label{alg:dataset_loader}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} frame index \(i\)
+\STATE \textbf{Output:} DatasetOut\((i,\I,\Z,\K,\T_{WC},(\nhat,d))\)
+\STATE \(\I \gets \text{load\_rgb}(i)\)
+\STATE \(\Z \gets \text{load\_depth}(i)\)
+\STATE \(\K \gets \text{adapt\_intrinsics}(i)\)
+\STATE \(\T_{WC} \gets \text{get\_pose}(i)\)
+\IF{ground plane enabled}
+    \STATE \((\nhat,d) \gets \text{estimate\_ground\_plane}(\I,\Z,\K)\)
+\ENDIF
+\RETURN DatasetOut\((i,\I,\Z,\K,\T_{WC},(\nhat,d))\)
+\end{algorithmic}
+\end{algorithm}
 
-\subsubsection{Caching of Detections}
-% Content about performance optimization through caching
-% - Detection caching strategy
-% - Performance improvements
-% - Memory management
+When enabled, the ground plane is estimated via RANSAC\@:
+\begin{algorithm}[H]
+\caption{Ground Plane Estimation (RANSAC)}
+\label{alg:ground_plane}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} depth map \(\Z\), intrinsics \(\K\), optional pose \(\T_{WC}\)
+\STATE \textbf{Output:} plane parameters \((\nhat,d)\)
+\STATE Filter \(\Z\) for valid values
+\STATE Adapt voxel size if sparse
+\STATE \(\Pcloud \gets \text{depth\_to\_pointcloud}(\Z,\K)\)
+\IF{\(\T_{WC}\) available}
+    \STATE Transform \(\Pcloud\) to world frame
+\ENDIF
+\STATE Apply RANSAC plane detection on \(\Pcloud\)
+\STATE Orient normal upward and toward camera
+\RETURN \((\nhat,d)\)
+\end{algorithmic}
+\end{algorithm}
 
-\subsubsection{SE(3) Transformations}
-% Content about spatial transformations
-% - SE(3) into Ego Frame: Transformation to ego-centric coordinates
-% - SE(3) for Frame Change: Model context transformation
-% - Mathematical foundations
+The plane equation is
+\begin{equation}
+\nhat^{\top} \mathbf{x} + d = 0.
+\label{eq:plane}
+\end{equation}
 
-\subsubsection{Height Information with RANSAC}
-% Content about ground plane detection
-% - RANSAC implementation for ground plane detection
-% - Height calculation methods
-% - Accuracy and robustness
+\subsubsection{Gemini Detection}
+The RGB frame is sent to Gemini, yielding raw 2-D boxes and segmentation masks. Each detection is processed as follows.
 
-\subsection{Path Description}
-% Content about navigation guidance generation
-% - Path analysis and description
-% - Navigation instruction generation
-% - User interaction design
+\begin{algorithm}[H]
+\caption{Processing Gemini Detections}
+\label{alg:gemini_detection}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} bbox \(\bbox\), mask \(\Ms\), ground plane \((\nhat,d)\)
+\STATE \textbf{Output:} enriched detection attributes
+\STATE Scale \(\bbox\) from \([0,1000]\) to pixel coordinates
+\STATE Resize \(\Ms\) to \(\bbox\)'s region
+\STATE Erode \(\Ms\) and compute depth statistics
+\STATE Compute 3-D centers from \(\bbox\) and \(\Ms\)
+\STATE Derive BEV rotation
+\STATE Compute object height using ground plane
+\end{algorithmic}
+\end{algorithm}
 
-\subsection{Path Description}
+\subsubsection{Depth Statistics}
+For all valid depth values \(\D\) inside a mask the basic statistics are
+\begin{align}
+    \text{min} &= \text{nearest\_nonzero}(\D), \\
+    \text{median} &= \operatorname{percentile}(\D,50), \\
+    \text{max} &= \operatorname{percentile}(\D,90).
+\end{align}
+
+The helper function \texttt{nearest\_nonzero} selects the smallest inlier depth:
+\begin{algorithm}[H]
+\caption{nearest\_nonzero}
+\label{alg:nearest_nonzero}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} depth set \(\D\)
+\STATE \textbf{Output:} smallest inlier depth or \(0\)
+\IF{\(\D=\emptyset\)}
+    \RETURN \(0\)
+\ENDIF
+\STATE \(m \gets \operatorname{median}(\D)\)
+\STATE \(s \gets \operatorname{median}(|\D-m|)\)
+\STATE \(\D' \gets \{\,d\in \D \mid m - k s \le d \le m + k s \}\)
+\IF{\(\D' \neq \emptyset\)}
+    \RETURN \(\min(\D')\)
+\ELSE
+    \RETURN \(\min(\D)\)
+\ENDIF
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Computing 3D Center Points}
+Pixel coordinates \((x,y)\) with depth \(d\) are converted to camera coordinates
+\begin{align}
+    x_c &= \tfrac{(x-c_x)\, d}{f_x}, \\
+    y_c &= \tfrac{(y-c_y)\, d}{f_y}, \\
+    z_c &= d.
+\end{align}
+Bounding box centers use
+\begin{align}
+    d &= \text{nearest\_nonzero}(\Z[y_0:y_1, x_0:x_1]), \\
+    u &= \tfrac{x_0+x_1}{2},\quad v = \tfrac{y_0+y_1}{2}, \\
+    \mathbf{p}_c &= \text{pix\_to\_cam}((u,v),d,\K)
+\end{align}
+and mask centers use
+\begin{align}
+    d &= \text{nearest\_nonzero}(\Z[\Ms>0]), \\
+    u &= \operatorname{median}\{x_i \mid \Ms(x_i,y_i)>0\}, \\
+    v &= \operatorname{median}\{y_i \mid \Ms(x_i,y_i)>0\}, \\
+    \mathbf{p}_c &= \text{pix\_to\_cam}((u,v),d,\K).
+\end{align}
+
+\subsubsection{Estimating Clock Direction}
+Given a 3-D point \((x_c, y_c, z_c)\) in camera coordinates the bearing and clock position are
+\begin{align}
+    \theta &= \operatorname{atan2}(x_{c}, z_{c}), \\
+    \alpha &= (\theta\tfrac{180}{\pi}) \bmod 360, \\
+    h &= \pmod{12}(\operatorname{round}(\alpha/30)), \\
+    h &= \begin{cases}12,& h=0\\h,&\text{otherwise} \end{cases}.
+\end{align}
+
+\subsubsection{Estimating Height Relative to the Ground}
+With ground plane parameters \((\nhat,d)\) the height of a point \(\mathbf{p}\) is
+\begin{equation}
+h = \nhat^{\top} \mathbf{p} + d.
+\label{eq:height}
+\end{equation}
+
+\subsubsection{SE (3) Transforms}
+Transforming from camera to world coordinates uses
+\begin{equation}
+\mathbf{X}_w = \T_{WC}^{-1}
+\begin{bmatrix}
+    \mathbf{x}_c \\
+    1
+\end{bmatrix}.
+\label{eq:cam_to_world}
+\end{equation}
+
+The following steps describe how a motion between two \emph{ego poses} is described such that it can be injected into the model context. The transformation from one pose \(\mathbf{T}_A\) to another \(\mathbf{T}_B\) is given by:
+\begin{equation}
+\T_{rel} = \mathbf{T}_B \mathbf{T}_A^{-1},\quad
+d = \|\boldsymbol{t}_{rel}\|,\quad
+\psi = \operatorname{atan2}(-R_{32}, R_{11}).
+\label{eq:relative_motion}
+\end{equation}
+
+\subsubsection{Resulting Structure}
+After processing, all fields are stored in \texttt{AABBDetection}: normalized box, mask, depth statistics, 3-D center, rotation in degrees and clock hours, and height from the ground plane.  These detections across frames are transformed into the ego frame for path planning.
+
+% \subsection{System Architecture}
+% % Content about system architecture (Jan)
+% % - Sequence diagram to explain different use cases/data flow in the application
+% % - How we use Live API, Gemini Pro, etc.
+% % - Overall system design and components
+
+% \subsection{Core Features}
+
+% \subsubsection{Full Scene Description}
+% % Content about comprehensive scene understanding and description
+% % - Scene analysis approach
+% % - Information extraction methods
+% % - Description generation
+
+% \subsubsection{Spatial Information on Individual Objects}
+% % Content about object-level spatial processing
+% % - Rotation: Object orientation detection
+% % - Depth: Distance measurements
+% % - 3D Points: Spatial coordinate calculation
+% % - Erosion: Image processing techniques
+% % - MAD: Median Absolute Deviation calculations
+
+% \subsection{Advanced Spatial Processing}
+
+% \subsubsection{Caching of Detections}
+% % Content about performance optimization through caching
+% % - Detection caching strategy
+% % - Performance improvements
+% % - Memory management
+
+% \subsubsection{SE(3) Transformations}
+% % Content about spatial transformations
+% % - SE(3) into Ego Frame: Transformation to ego-centric coordinates
+% % - SE(3) for Frame Change: Model context transformation
+% % - Mathematical foundations
+
+% \subsubsection{Height Information with RANSAC}
+% % Content about ground plane detection
+% % - RANSAC implementation for ground plane detection
+% % - Height calculation methods
+% % - Accuracy and robustness
+
+% \subsection{Path Description}
+% % Content about navigation guidance generation
+% % - Path analysis and description
+% % - Navigation instruction generation
+% % - User interaction design
+
+% \subsection{Path Description}

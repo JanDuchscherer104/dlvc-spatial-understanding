@@ -1,0 +1,9 @@
+\begin{enumerate}
+    \item Filter $Z$ for valid values
+    \item Adapt voxel size if sparse
+    \item Create point cloud $P$ from $Z$ and $K$
+    \item Transform $P$ to world frame if pose $T$ is available
+    \item Apply RANSAC plane detection on $P$
+    \item Orient normal upward and toward camera
+    \item Return plane $(n,d)$
+\end{enumerate}

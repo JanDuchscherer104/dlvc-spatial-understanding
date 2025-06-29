@@ -1,0 +1,10 @@
+\begin{enumerate}
+    \item Input depth values $\{d_i\}$ and scale $k$
+    \item $D \gets \{d_i\mid d_i>0\}$
+    \item\textbf{if} $D=\emptyset$ \textbf{then} return $0$
+    \item $m \gets \operatorname{median}(D)$
+    \item $s \gets \operatorname{median}(|D-m|)$
+    \item $D' \gets \{d\in D\mid m-k s \le d \le m+k s\}$
+    \item\textbf{if} $D'\neq\emptyset$ \textbf{then} return $\min(D')$
+    \item\textbf{else} return $\min(D)$
+\end{enumerate}

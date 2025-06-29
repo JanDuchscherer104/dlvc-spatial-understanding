@@ -1,0 +1,8 @@
+\begin{enumerate}
+    \item Given poses $T_A$, $T_B$
+    \item $T_{rel} \gets T_B T_A^{-1}$
+    \item Extract $R_{rel}$ and $t_{rel}$
+    \item $d \gets \|t_{rel}\|$
+    \item $\psi \gets \operatorname{atan2}(-R_{rel}[2,0], R_{rel}[0,0])$
+    \item Return $(d, \psi)$
+\end{enumerate}

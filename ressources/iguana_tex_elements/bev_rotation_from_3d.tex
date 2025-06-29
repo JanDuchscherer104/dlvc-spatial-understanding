@@ -1,0 +1,6 @@
+\begin{align*}
+    \theta &= \operatorname{atan2}(x_{c}, z_{c}),\\
+    \alpha &= \left(\theta\,\frac{180}{\pi}\right) \bmod 360,\\
+    h &= \operatorname{mod}_{12}\bigl(\operatorname{round}(\alpha/30)\bigr),\\
+    h &= \begin{cases}12,& h=0\\h,&\text{otherwise} \end{cases}.
+\end{align*}

@@ -1,0 +1,7 @@
+\begin{enumerate}
+    \item Given bbox $(y_0,x_0,y_1,x_1)$, depth map $Z$, intrinsics $K$
+    \item $d \gets \text{nearest\_nonzero}(Z[y_0:y_1,x_0:x_1])$
+    \item $(u,v) \gets (\tfrac{x_0+x_1}{2}, \tfrac{y_0+y_1}{2})$
+    \item $\mathbf{p}_c \gets \text{pix\_to\_cam}((u,v), d, K)$
+    \item Return $\mathbf{p}_c$
+\end{enumerate}

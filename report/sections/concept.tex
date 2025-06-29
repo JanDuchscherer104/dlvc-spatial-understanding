@@ -1,51 +1,114 @@
-\section{Concept}
+\section{Spatial Processing Pipeline}
 
-\subsection{System Architecture}
-% Content about system architecture (Jan)
-% - Sequence diagram to explain different use cases/data flow in the application
-% - How we use Live API, Gemini Pro, etc.
-% - Overall system design and components
+The following steps describe how a single RGB--D frame is transformed into structured 3D detections that can be used for navigation.
 
-\subsection{Core Features}
+\subsection{Dataset Loader}
+The \texttt{StrayDataset} provides frames through its \texttt{\_\_getitem\_\_} method.  It loads the RGB image $I$, the depth map $Z$, adapts the intrinsics $K$, retrieves the camera pose $T_{WC}$ and optionally estimates the ground plane $(n,d)$.  The fields are returned in a \texttt{DatasetOut} structure.
 
-\subsubsection{Full Scene Description}
-% Content about comprehensive scene understanding and description
-% - Scene analysis approach
-% - Information extraction methods
-% - Description generation
+\begin{enumerate}
+    \item $I \gets \text{load\_rgb}(i)$
+    \item $Z \gets \text{load\_depth}(i)$
+    \item $K \gets \text{adapt\_intrinsics}(i)$
+    \item $T_{WC} \gets \text{get\_pose}(i)$
+    \item Detect ground plane $(n,d)$ if enabled
+    \item Return DatasetOut$(i,I,Z,K,T_{WC},(n,d))$
+\end{enumerate}
 
-\subsubsection{Spatial Information on Individual Objects}
-% Content about object-level spatial processing
-% - Rotation: Object orientation detection
-% - Depth: Distance measurements
-% - 3D Points: Spatial coordinate calculation
-% - Erosion: Image processing techniques
-% - MAD: Median Absolute Deviation calculations
+When enabled, the ground plane is estimated via RANSAC:
+\begin{enumerate}
+    \item Filter $Z$ for valid values
+    \item Adapt voxel size if sparse
+    \item Create point cloud $P$ from $Z$ and $K$
+    \item Transform $P$ to world frame if pose $T$ is available
+    \item Apply RANSAC plane detection on $P$
+    \item Orient normal upward and toward camera
+    \item Return plane $(n,d)$
+\end{enumerate}
+The plane equation is
+\[\mathbf{n}^{\top} \mathbf{x} + d = 0.\]
 
-\subsection{Advanced Spatial Processing}
+\subsection{Gemini Detection}
+The RGB frame is sent to Gemini, yielding raw 2-D boxes and segmentation masks. Each detection is processed as follows.
 
-\subsubsection{Caching of Detections}
-% Content about performance optimization through caching
-% - Detection caching strategy
-% - Performance improvements
-% - Memory management
+\begin{enumerate}
+    \item Scale bbox from $[0,1000]$ to pixels
+    \item Resize mask to bbox region
+    \item Erode mask and compute depth statistics
+    \item Compute 3D centers from bbox and mask
+    \item Derive BEV rotation
+    \item Compute height using ground plane
+\end{enumerate}
 
-\subsubsection{SE(3) Transformations}
-% Content about spatial transformations
-% - SE(3) into Ego Frame: Transformation to ego-centric coordinates
-% - SE(3) for Frame Change: Model context transformation
-% - Mathematical foundations
+\subsection{Depth Statistics}
+For all valid depth values $D$ inside a mask the basic statistics are
+\[
+    \text{min}=\text{nearest\_nonzero}(D),\quad
+    \text{median}=\operatorname{percentile}(D,50),\quad
+    \text{max}=\operatorname{percentile}(D,90).
+\]
 
-\subsubsection{Height Information with RANSAC}
-% Content about ground plane detection
-% - RANSAC implementation for ground plane detection
-% - Height calculation methods
-% - Accuracy and robustness
+The helper function \texttt{nearest\_nonzero} selects the smallest inlier depth:
+\begin{enumerate}
+    \item Collect valid depths $D=\{d_i>0\}$
+    \item\textbf{if} $D=\emptyset$ \textbf{then} return $0$
+    \item $m \gets \operatorname{median}(D)$
+    \item $s \gets \operatorname{median}(|D-m|)$
+    \item $D' \gets \{d\in D\mid m-k s \le d \le m+k s\}$
+    \item\textbf{if} $D'\neq\emptyset$ \textbf{then} return $\min(D')$
+    \item\textbf{else} return $\min(D)$
+\end{enumerate}
 
-\subsection{Path Description}
-% Content about navigation guidance generation
-% - Path analysis and description
-% - Navigation instruction generation
-% - User interaction design
+\subsection{Computing 3D Center Points}
+Pixel coordinates $(x,y)$ with depth $d$ are converted to camera coordinates
+\[
+    x_c = \tfrac{(x-c_x)\, d}{f_x},\qquad
+    y_c = \tfrac{(y-c_y)\, d}{f_y},\qquad
+    z_c = d.
+\]
+Bounding box centers use
+\[
+    d = \text{nearest\_nonzero}(Z[y_0:y_1, x_0:x_1]),\quad
+    u = \tfrac{x_0+x_1}{2},\ v = \tfrac{y_0+y_1}{2},\quad
+    \mathbf{p}_c = \text{pix\_to\_cam}((u,v),d,K)
+\]
+and mask centers use
+\[
+    d = \text{nearest\_nonzero}(Z[M>0]),\quad
+    u = \operatorname{median}\{x_i \mid M(x_i,y_i)>0\},\quad
+    v = \operatorname{median}\{y_i \mid M(x_i,y_i)>0\},\quad
+    \mathbf{p}_c = \text{pix\_to\_cam}((u,v),d,K).
+\]
 
-\subsection{Path Description}
+\subsection{Estimating Clock Direction}
+Given a 3-D point $(x_c, y_c, z_c)$ in camera coordinates the bearing and clock position are
+\[
+    \theta = \operatorname{atan2}(x_{c}, z_{c}),\quad
+    \alpha = (\theta\tfrac{180}{\pi}) \bmod 360,\quad
+    h = \operatorname{mod}_{12}(\operatorname{round}(\alpha/30)),\quad
+    h = \begin{cases}12,& h=0\\h,&\text{otherwise} \end{cases}.
+\]
+
+\subsection{Estimating Height Relative to the Ground}
+With ground plane parameters $(n,d)$ the height of a point $p$ is
+\[
+    h = n^{\top} p + d.
+\]
+
+\subsection{SE(3) Transforms}
+Transforming from camera to world coordinates uses
+\[
+    \mathbf{X}_w = T_{WC}^{-1}
+    \begin{bmatrix}
+        \mathbf{x}_c \\
+        1
+    \end{bmatrix}.
+\]
+Relative motion between two poses is
+\[
+    T_{rel} = T_B T_A^{-1},\quad
+    d = \|t_{rel}\|,\quad
+    \psi = \operatorname{atan2}(-R_{32}, R_{11}).
+\]
+
+\subsection{Resulting Structure}
+After processing, all fields are stored in \texttt{AABBDetection}: normalized box, mask, depth statistics, 3-D center, rotation in degrees and clock hours, and height from the ground plane.  These detections across frames are transformed into the ego frame for path planning.

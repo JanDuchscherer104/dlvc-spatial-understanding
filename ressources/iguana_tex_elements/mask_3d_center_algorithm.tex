@@ -1,0 +1,8 @@
+\begin{enumerate}
+    \item Given mask $M$, depth map $Z$ and intrinsics $K$
+    \item $D \gets Z[M>0]$
+    \item $d \gets \text{nearest\_nonzero}(D)$
+    \item $(u,v)$ is the median pixel position where $M>0$
+    \item $\mathbf{p}_c \gets \text{pix\_to\_cam}((u,v), d, K)$
+    \item Return $\mathbf{p}_c$
+\end{enumerate}

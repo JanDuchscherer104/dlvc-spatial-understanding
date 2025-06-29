@@ -1,0 +1,8 @@
+\begin{enumerate}
+    \item Input depth map $Z$, intrinsics $K$, voxel size $v$, threshold $\tau$, iterations $N$
+    \item Convert $Z$ to point cloud $P$ using $K$
+    \item Downsample $P$ with voxel size $v$
+    \item $(n,d) \gets \text{RANSAC\_plane}(P,\tau,N)$
+    \item Ensure $n$ points up and towards camera
+    \item Return $(n,d)$
+\end{enumerate}

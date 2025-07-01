@@ -1,8 +1,21 @@
 \section{Conclusion}
 
-% Content for concise summary of everything
-% - Key contributions of the work
-% - Main findings and results
-% - Impact on spatial understanding for visually impaired users
-% - Summary of technical achievements
-% - Overall assessment of the approach
+As already stated in the introduction, the goal of this project was to crate a system that can help users navigate through their environment by providing spatial guidance.
+In this work we have shown a 3D spatial scene description system that leverages Gemini VLM to translate visual and depth information into way to explane the environment to the user.
+With the solution crated it is possible to get the location or height of objects, as well as further orientation assistance.
+
+Returning to the original research question, we can conclude that the work in this field is still in its infancy and even thoughout the time of working on this projects there were multible relesases that changed our apprach.
+None of the models that are used in this project were available at the start of this research project.
+This also shows that there is still work to do and that the field is still evolving with could potentialy outdate this solution in the following months.
+Still the results showen in the evaluation section show that it is possible to get accurate and consistend navigation and spatial guidance information by using the Gemini Pro Model and Gemini Live API.
+This way it is not only possible to get accurate information, but the live api also allows for a easy to implement way of creating a real time conversation with the user.
+
+\subsection{Future Work}
+
+As showen in the discussion section, there are still limitations of the current solution hat can be fixed in the future.
+The two most important ones are Model and Performance enhancements and System integration:
+
+\begin{itemize}
+    \item \textbf{Model and Performance Enhancements:} On aspekt in order to improve the performance would be to fine tune the Gemini Pro model on outdoor scenes and make it more robust when it comes to outputing segementation maks in json format. Additionally, it could also help to use bach requests to the Gemini API in order to reduce latency and response time.
+    \item \textbf{System Integration:} Another aspect that can be enhanced is the implementation of the system in a real world scenario. This would include the integration of the system into a moble app with would come with its own challenges. For exampele, the system would need to use Websocket connections to the Gemini Live API in order to provice real time conversations.
+\end{itemize}

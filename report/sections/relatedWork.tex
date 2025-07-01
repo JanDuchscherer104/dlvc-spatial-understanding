@@ -1,22 +1,43 @@
 \section{Related Work}
 
-As discussed in previous studies~\cite{Harel78}, spatial understanding for assistive technology is an active research area.
+As discussed in previous studies~\cite{googleFinetuning2025}, spatial understanding for assistive technology is an active research area.
 
 \subsection{Spatial Understanding Systems}
 
 \subsubsection{SpatialBot}
-% Content about SpatialBot (Lukas)
-% - Key capabilities and features
-% - Spatial understanding approach
-% - Limitations and challenges
-% - Relevance to our work
+SpatialBot is a VLM designed for spatial tasks, by incorporating depth images and data into its outputs. 
+It is trained on a hierarchy of spatial tasks, with are categorized as log, middle and high-level.
+\begin{itemize}
+    \item \textbf{Low-level tasks:} Direct querying of depth values from a depth map and exact information of these on set points
+    \item \textbf{Middle-level tasks:} Comparing distances between objects, and calculating the relative position of objects in a scene.
+    \item \textbf{High-level tasks:} Understanding spatial relationships between objects and doing things like counting objects in a scene.
+\end{itemize}
 
-\subsubsection{VideoLLM3D}
-% Content about VideoLLM3D (Lukas)
-% - 3D video understanding capabilities
-% - Temporal spatial reasoning
-% - Performance characteristics
-% - Application to navigation
+It has been successfully deployed in robotic systems, where it can be used to translate spatial understanding into physical actions.
+This highlights the robustness of its capabilities with would help in guidance systems, where it is important to get correct spatial information to the user.
+
+Another feature that is highlighted in the paper is the ability to distinguish between real and printed objects by using the spatial depth information provided by the depth images.
+This can also help in navigation where detecting hazards is important, with also means the system needs to be able to decide if an object is a poster or a real thread.
+
+Internally the SpatialBot framework uses a fine-tuned VLM with a curated RGB-D dataset. 
+It tries to specifically address the challenge of profiding consistent and accurate information for robotic systems.
+As seen later in this paper, we also used a lot of the same concepts in mapping depth values and profiding spatial information als seen here.\cite{SpatialBotCai2025}
+
+\subsubsection{Video-3D LLM}
+Video-3D LLM is a model that enhances Mulitmodal Large Language Models (MLLMs) with sophisticated 3D spatial understanding capabilities.
+This tackles the challenge, that most MLLMs are only trained on 3D data with limits there capabilities in spatial reasoning.
+It is treating 3D scenes as dynamic videos and incorporating 3D data into the video representation.
+This allows a more accurate understanding and goes in line with the goal of using a smartphone video stream as an input for our system.
+
+\begin{itemize}
+    \item \textbf{Position-Aware Video Representation:} It is not using the traditional approach of converting 3D scenes into point clouds. Instead it directly processes video frames along with their corresponding 3D global coordinates. It does this by back-projecting pixel from the depth image and then encoding and injecting the visual features to give the option of getting spatial information.
+    \item \textbf{Efficient Frame Sampling:} To handle larger video sequences, it uses a sampling strategy where it only uses the the minimum number of frames needed to get all the spatial information. 
+    \item \textbf{Multi-Task Generalist Model:} As a single model it can handle task like, describing objects, locating objects and answering questions about objects that require spatial reasoning.
+\end{itemize}
+
+Even though it might seem like a perfect fit for our usecase it still comes with some limitations.
+For example, it is trained on indoor scenes and would probably not be able to handle outdoor scenes as well.
+Its compute time for processing a video is also quite high, making it difficult to use in a real-time setting. \cite{zheng2024video3dllmlearningpositionaware}
 
 \subsubsection{SpatialVLM}
 % Content about SpatialVLM (Jan)

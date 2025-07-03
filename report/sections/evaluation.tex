@@ -2,18 +2,27 @@
 
 \subsection{Testing Methodology}
 In order to evaluate the functionality of the application a series of tests were conducted.
-In order to assure that the results are consistend and compareable, the same setup, promt, input data was used for each run.
+To assure that the results are consistend and compareable, the same setup, promt, input data was used for each run.
 There was also a focus of using the same scenes and objects for each test to make it easier to compare results and find outliers.
 The input and some of the results can be found in the appendix.
-As a model the Gemini Pro 2.5 model that was released on the 16th of June 2025 was used.
+For classification and segementation the Gemini Pro 2.5 model that was released on the 16th of June 2025 was used.
 
 \subsection{Tool Usage}
-% Content about parameter optimization (Lukas)
-% - Try different temperature settings in Live API and Gemini Pro
-%   - Agent works better with lower temperature
-%   - Higher top_k might compensate for decreased mode collapse in model expression
-% - Compare distance results on same objects
-% - Check if tool usage of Live API is correct
+A very important aspect is the correct use of the function calling.
+When the live api detects that a user might want a more complex operation, like the distance to a specific object, or more complex navigation instructions, it will call a function that triggers the needed process.
+In order to evaluate the tool usage, a seriers of tests were conducted, where the live api neeed to use function calling to conduct an answer.
+throughout the tests multible values for temperature, top k and top p were used to see the effect on the tool usage.
+There it was found, that there was no significant imact of these values in situation in witch the model was not able to correctly use function calling.
+Is seems like regardless of the values used, there are contalations in witch the model is not able to function correctly.
+A example of this can be seen in the following picute \ref{fig:tool_usage}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.4\textwidth]{figures/tool_usage.png}
+\caption{Tool usage results for the same scene in multiple runs.}
+\label{fig:tool_usage}
+\end{figure}
+
 
 \subsection{Distance Calculation and Segmentation quality}
 
@@ -28,7 +37,7 @@ There it could be seen that a full segementation of an entire scene reaching the
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.4\textwidth]{figures/distribution_of_depth.png}
+\includegraphics[width=0.4\textwidth]{figures/depth_distribution.png}
 \caption{Distance calculation results for the same scene in multiple runs.}
 \label{fig:distance_calculation}
 \end{figure}
@@ -42,22 +51,25 @@ The masks were ranked based on the following criteria:
     \item \textbf{Wrong:} The mask does not cover the object at all or covers the wrong object.
 \end{itemize}
 
-As you can see in the Table \ref{tab:segementation_quality} the segmentation masks vary in quality between different objects but not so much between runs.
+As you can see in the Table \ref{tab:segmentation_quality} the segmentation masks vary in quality between different objects but not so much between runs.
 For example, the bike was segemented correctly in every run, with one beeing off by a little bit.
 Meanwhile the trash can was not detected at all even though it was clearly visable on screen and could be a potential hazard for the user.
 The scooter was always detected in the right position, but the small size of the hanlebar made it difficult for the model to segment it correctly.
 This is not a problem in this case, since the depth estimation can still work as intended with the segementation mask not being perfect.
 
+\begin{table}[H]
+\centering
 \begin{tabular}{|l|cccc|c|}
 \hline
  & \multicolumn{4}{c|}{Segmentation quality} & \\
 \cline{2-5}
- & Good & to big & to small & Wrong & Sum of tries \\
+ & High Fidelity & Oversegmentation & Undersegmentation & Segmentation Failure & Sum of tries \\
 \hline
-Teal Scooter & & & 4 & 1 & 5 \\
+Teal Scooter &2 & 1& 1 & 1 & 5 \\
 Trash can & & & & 5 & 5 \\
 Bike & 4 & 1 & & & 5 \\
 \hline
-\caption{Segmentation quality of different objects throughout different runs.}
-\label{tab:segementation_quality}
 \end{tabular}
+\caption{Segmentation quality of different objects throughout different runs.}
+\label{tab:segmentation_quality}
+\end{table}

@@ -137,7 +137,6 @@ class StrayScannerPaths(BaseConfig):
 streamlit run spatial_guidance/ui/streamlit_app_live.py
 ```
 
-
 ## Repository Structure
 
 ```

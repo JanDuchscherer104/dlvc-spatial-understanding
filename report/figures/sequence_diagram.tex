@@ -27,7 +27,7 @@
 
   % Step 4: LiveAgent requests new detections from Gemini
   \draw[->] (3.5,-5.5) -- (10.5,-5.5) node[midway,above] {\footnotesize \texttt{detect}($\I_t, p'$)};
-  \draw[->] (10.5,-5.7) -- (3.5,-5.7) node[midway,below] {\footnotesize masks \& AABBs: $\{\Ms_i, \bbox_i, c_i\}_{i=1}^N$};
+  \draw[->] (10.5,-5.7) -- (3.5,-5.7) node[midway,below] {\footnotesize masks \& AABBs: $\{\mathbf{M}_{s,i}, \bbox_i, c_i\}_{i=1}^N$};
 
   % Step 5: LiveAgent sends to GeomProc for 3D processing
   \draw[->] (3.5,-7.2) -- (14,-7.2) node[midway,above] {\footnotesize \texttt{process3D}($\Ms, \Z_t, (\nhat, d), \K$)};

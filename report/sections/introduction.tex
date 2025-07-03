@@ -1,23 +1,21 @@
 \section{Introduction}
+It is not always easy to navigate a city environment, especially for people with visual impairments.
+Often times there are obstacles in the way that can be hard to detect, or there is no clear path to follow.
+Using commen navigation systems or apps that use 2D data or gps is not always sufficient to provide the necessary information for navigation.
+Often times it is necessary to have a 3D understanding of the environment in order to navigate around safely.
+This is where the idea of a 3D spatial scene description system comes into play.
+The goal of this project is to create a system that can help users navigate through their environment by providing spatial guidance.
+The app should combine knowen VLM capabilities with 3D data to provide spatial information.
+It should help the user by giving him information about the location, height and distance of objects around him.
+There should also be a way of getting further navigation assistance by providing a way to ask questions about the environment.
 
-Independent navigation through complex indoor and outdoor environments remains a critical challenge for blind and visually impaired 
-individuals. While modern assistive technologies often rely on 2D color image-based scene descriptions, these approaches suffer
- from a lack of precise spatial information. Specifically, they fall short in conveying accurate distances, orientations, and 
- relative positions of environmental features such as obstacles, landmarks, and pathways. As a result, users are often left without
-  sufficient spatial context to make safe and confident mobility decisions in dynamic and unfamiliar environments.
+\subsection{Research Question}
+After analysing the current state of the field and the above mentioned goals, the following research question was formulated:
+\begin{quote}
+\textit{How can a 3D spatial scene description 
+system effectively translate visual and 
+depth information into guidance to 
+improve navigation of blind and visually 
+impaired individuals.}
+\end{quote}
 
-Recent advancements in 3D spatial understanding offer promising avenues for enhancing accessibility tools by incorporating 
-depth-aware scene interpretation. In particular, systems leveraging 3D data can more effectively describe the geometry and layout
- of a user's surroundings, thereby enabling more informative and actionable guidance.
-
-This research aims to develop and evaluate a 3D spatial scene description system tailored specifically for blind and visually 
-impaired smartphone users. The central research question is: \textit{How can a mobile system accurately and interactively describe
- 3D spatial scenes to support real-time navigation and obstacle avoidance for blind users?} To address this, we propose a solution
-  that integrates Gemini Spatial Understanding capabilities to provide precise, user-centered spatial descriptions and interactive
-   audio guidance. The system will be designed to identify key objects, calculate their spatial relationships, and communicate this
-    information through accessible audio interfaces to support real-world navigation.
-
-This paper presents the system design, implementation on both laptop and iPhone platforms, and a comprehensive evaluation
- in diverse real-world scenarios including urban navigation, public transport, grocery stores, and object localization.
-  Additionally, we explore opportunities for system optimization through model fine-tuning and potential on-device deployment
-   strategies.

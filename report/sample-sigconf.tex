@@ -56,6 +56,12 @@
 \usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{booktabs}
+\usepackage{listings}
+
+%% TikZ packages for sequence diagrams
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit, backgrounds}
+\usepackage{xcolor}
 
 
 %%
@@ -73,9 +79,11 @@
 \newcommand{\T}{\mathbf{T}}                   % Transformation matrix
 \newcommand{\Ms}{\mathbf{M}_s}                % Segmentation mask
 \newcommand{\bbox}{\mathbf{b}}                % Bounding box
-\newcommand{\nhat}{\hatv{n}}                % Ground plane normal (unit vector)
+\newcommand{\nhat}{\hatv{n}}                  % Ground plane normal (unit vector)
+\newcommand{\pc}{\mathbf{p}^c}                % 3D point in camera coordinates
 \newcommand{\D}{\mathbf{D}}                   % Depth values
 \newcommand{\Pcloud}{\mathbf{P}}              % Point cloud
+\newcommand{\taurel}{\boldsymbol{\tau}_{rel}} % Relative translation vector
 
 %% end of the preamble, start of the body of the document source.
 \begin{document}
@@ -108,7 +116,7 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-
+This paper presents a 3D spatial understanding system designed to provide navigation assistance for visually impaired individuals. Our approach combines computer vision techniques with large language models to create an interactive audio guidance system that can describe spatial relationships and provide real-time navigation instructions. The system utilizes RANSAC-based ground plane detection, semantic segmentation, and spatial reasoning to understand complex 3D environments and communicate spatial information effectively~\cite{spatialvlmChen2024}.
 \end{abstract}
 
 %%

@@ -51,6 +51,9 @@
 \acmISBN{} % Remove ISBN
 \acmDOI{} % Remove DOI
 
+%% Enable page numbers in footer
+\settopmatter{printfolios=true}
+
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
 \AtBeginDocument{%
@@ -182,40 +185,9 @@ To Tobias, for his support and guidance throughout this project.
 
 \input{sections/appendix}
 
-\appendix
-
 %%
 %% Notation table
 %%
-\section*{Notation}
-\begin{table}[h]
-\centering
-\caption{Mathematical notation used throughout this paper.}
-\label{tab:notation}
-\begin{tabular}{ll}
-\toprule
-\textbf{Symbol} & \textbf{Description} \\
-\midrule
-\notation{\I}{RGB image}
-\notation{\Z}{Depth map}
-\notation{\K}{Camera intrinsics matrix (3 \( \times \) 3)}
-\notation{\T_{WC}}{Camera-to-world transformation matrix (4 \( \times \) 4)}
-\notation{\T_{rel}}{Relative transformation matrix}
-\notation{\bbox}{Bounding box coordinates}
-\notation{\Ms}{Segmentation mask}
-\notation{\nhat}{Ground plane normal vector (unit)}
-\notation{d}{Ground plane distance parameter}
-\notation{\D}{Set of depth values}
-\notation{\Pcloud}{3D point cloud}
-\notation{\mathbf{p}_c}{3D point in camera coordinates}
-\notation{\mathbf{X}_w}{3D point in world coordinates}
-\notation{\boldsymbol{t}_{rel}}{Relative translation vector}
-\notation{i}{Frame index}
-\notation{h}{Clock hour / object height}
-\notation{\theta, \alpha, \psi}{Rotation angles}
-\bottomrule
-\end{tabular}
-\end{table}
 
 \end{document}
 \endinput

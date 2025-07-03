@@ -1,5 +1,36 @@
 \appendix
 
+\section{Notation}
+\begin{table}[H]
+\centering
+\caption{Mathematical notation used throughout this paper.}
+\label{tab:notation}
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+\notation{\I}{RGB image}
+\notation{\Z}{Depth map}
+\notation{\K}{Camera intrinsics matrix (3 \( \times \) 3)}
+\notation{\T_{WC}}{Camera-to-world transformation matrix (4 \( \times \) 4)}
+\notation{\T_{rel}}{Relative transformation matrix}
+\notation{\bbox}{Bounding box coordinates}
+\notation{\Ms}{Segmentation mask}
+\notation{\nhat}{Ground plane normal vector (unit)}
+\notation{d}{Ground plane distance parameter}
+\notation{\D}{Set of depth values}
+\notation{\Pcloud}{3D point cloud}
+\notation{\mathbf{p}_c}{3D point in camera coordinates}
+\notation{\mathbf{X}_w}{3D point in world coordinates}
+\notation{\boldsymbol{\tau}_{rel}}{Relative translation vector}
+\notation{i}{Frame index}
+\notation{\psi_{deg}}{Yaw angle in degrees}
+\notation{\psi_{clk}}{Yaw angle in clock hours}
+\notation{\theta, \alpha, \psi}{Rotation angles}
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Technical Details}
 
 \subsection{Actor Pattern Implementation}

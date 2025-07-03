@@ -1,0 +1,41 @@
+
+%  TODO: ensure consitent use of the same symbols!
+\begin{tikzpicture}[scale=0.7, every node/.style={scale=0.7}]
+  % Actors (layers from left to right)
+  \node (user) at (0,0) {\textbf{User}};
+  \node (agent) at (3.5,0) {\textbf{LiveAgent}};
+  \node (cache) at (7,0) {\textbf{DetCache}};
+  \node (gemini) at (10.5,0) {\textbf{Gemini}};
+  \node (geomproc) at (14,0) {\textbf{GeomProc}};
+
+  % Lifelines
+  \draw[dashed] (user) -- (0,-10.2);
+  \draw[dashed] (agent) -- (3.5,-10.2);
+  \draw[dashed] (cache) -- (7,-10.2);
+  \draw[dashed] (gemini) -- (10.5,-10.2);
+  \draw[dashed] (geomproc) -- (14,-10.2);
+
+  % Step 1: User sends frame data
+  \draw[->] (0,-1.8) -- (3.5,-1.8) node[midway,above] {\footnotesize \texttt{SetFrameCmd}($\I_t, \Z_t, (\|\taurel\|, \psi_{rel}), \K, (\nhat, d)_t$)};
+
+  % Step 2: User asks for spatial understanding
+  \draw[->] (0,-2.8) -- (3.5,-2.8) node[midway,above] {\footnotesize \texttt{AskCmd}($p$)};
+
+  % Step 3: LiveAgent queries cache for previous detections
+  \draw[->] (3.5,-3.8) -- (7,-3.8) node[midway,above] {\footnotesize \texttt{retrieve}()};
+  \draw[->] (7,-4) -- (3.5,-4) node[midway,below] {\footnotesize $\mathcal{D}_{t-1} \xrightarrow{\T_{\tau}^t} \mathcal{D}_{\tau}^{ego}$};
+
+  % Step 4: LiveAgent requests new detections from Gemini
+  \draw[->] (3.5,-5.5) -- (10.5,-5.5) node[midway,above] {\footnotesize \texttt{detect}($\I_t, p'$)};
+  \draw[->] (10.5,-5.7) -- (3.5,-5.7) node[midway,below] {\footnotesize masks \& AABBs: $\{\Ms_i, \bbox_i, c_i\}_{i=1}^N$};
+
+  % Step 5: LiveAgent sends to GeomProc for 3D processing
+  \draw[->] (3.5,-7.2) -- (14,-7.2) node[midway,above] {\footnotesize \texttt{process3D}($\Ms, \Z_t, (\nhat, d), \K$)};
+  \draw[->] (14,-7.4) -- (3.5,-7.4) node[midway,below] {\footnotesize 3D coords: $\{\mathcal{D}_t \}_{i=1}^N = \{\pc_i, \| \pc_i \|, h_i, \psi_i\}_{i=1}^N$};
+
+  % Step 6: LiveAgent stores ALL detections in cache
+  \draw[->] (3.5,-8.9) -- (7,-8.9) node[midway,above] {\footnotesize \texttt{store}($\{\mathcal{D}_t \}_{i=1}^N$)};
+
+  % Step 7: LiveAgent responds to user
+  \draw[->] (3.5,-9.5) -- (0,-9.5) node[midway,above] {\footnotesize \texttt{TextEvt}: spatial description};
+\end{tikzpicture}

@@ -1,5 +1,44 @@
 \section{Concept}
 
+%  TODO: label all equations, figures, algorithms, sections, subsections, ...
+
+% LiveAgent:
+% Tool using agent
+% User interaction
+% Async. orchestration (actor pattern)
+% FSM to allow “reasoning”
+% GeminiAABBDetSeg:
+% Gemini → JSON → (Masks, AABBs, Labels)
+% GeomProc: will be described in \autoref{au}
+% Compute spatial properties of detections, i.e.:
+% ego-centric 3d coords, depth, yaw, height
+% Actually data-centric pipeline (chain of Pydantic models)
+% DetCache:
+% Get previous detections in ego-frame
+This section details the modular architecture of our 3-D spatial-understanding system (\autoref{fig:system-arch}) and formalises every processing step from raw RGB-D input to the enriched detection objects used by the \emph{Live\-Agent}.  All equations, algorithms, and figures are enumerated and explicitly referenced in the accompanying text to ensure traceability and reproducibility.
+
+%===================================================================
+\subsection{System Architecture}\label{subsec:architecture}
+%===================================================================
+
+\begin{figure}[t]
+    \centering
+    \resizebox{\linewidth}{!}{%
+        \input{figures/sequence_diagram.tex}
+    }
+    \caption{System sequence diagram showing the interaction flow between components. The \texttt{LiveAgent} orchestrates user interaction and tool calls, \texttt{GeminiAABBDetSeg} produces zero-shot detections, \texttt{GeomProc} enriches them with 3-D geometry, and \texttt{DetCache} maintains temporal coherence across frames.}
+    \label{fig:system-arch}
+\end{figure}%
+
+The architecture follows an asynchronous \emph{actor pattern} in which each component runs in its own task and exchanges typed messages:
+\begin{enumerate}
+    \item \textbf{LiveAgent} receives user queries (spoken or textual) and decides, through a finite-state machine, whether  qualitative reasoning suffices or quantitative tool calls are required.
+    \item \textbf{GeminiAABBDetSeg} converts an RGB image into raw axis-aligned bounding boxes (AABBs), segmentation masks, and class labels via zero-shot prompting of the Gemini~2.5 model (see Fig.~\ref{fig:gemini-seq}).
+    \item \textbf{GeomProc} projects the 2-D detections into metric 3-D space, estimates per-object depth, yaw, and height, and packages the results in an \texttt{AABBDetection} record (Algorithms~\ref{alg:gemini_detection}–\ref{alg:mask_processing}).
+    \item \textbf{DetCache} transforms previous detections into the current ego frame and serves them to the agent, enabling multi-view coherence.
+\end{enumerate}
+All data flow is strictly typed using \textsc{Pydantic} models, ensuring schema validation at every interface.
+
 
 \subsection{Spatial Processing Pipeline}
 
@@ -25,33 +64,37 @@ The \texttt{StrayDataset} provides frames through its \texttt{\_{}\_{}getitem\_{
 \end{algorithmic}
 \end{algorithm}
 
-When enabled, the ground plane is estimated via RANSAC\@:
-\begin{algorithm}[H]
-\caption{Ground Plane Estimation (RANSAC)}
-\label{alg:ground_plane}
-\begin{algorithmic}[1]
-\STATE \textbf{Input:} depth map \(\Z\), intrinsics \(\K\), optional pose \(\T_{WC}\)
-\STATE \textbf{Output:} plane parameters \((\nhat,d)\)
-\STATE Filter \(\Z\) for valid values
-\STATE Adapt voxel size if sparse
-\STATE \(\Pcloud \gets \text{depth\_to\_pointcloud}(\Z,\K)\)
-\IF{\(\T_{WC}\) available}
-    \STATE Transform \(\Pcloud\) to world frame
-\ENDIF
-\STATE Apply RANSAC plane detection on \(\Pcloud\)
-\STATE Orient normal upward and toward camera
-\RETURN \((\nhat,d)\)
-\end{algorithmic}
-\end{algorithm}
+Estimating the height of an object relative to the ground plane employs the hessian normal form of the plane.
+When enabled, the ground plane is estimated via RANSAC following the procedure described in~\autoref{alg:ground_plane}.
 
-The plane equation is
+The depth map is converted to a point cloud, and RANSAC is applied to find the best-fitting plane. The resulting plane normal \(\nhat\) and distance \(d\) are used to describe the ground plane in the world frame. The plane equation is given by
+
+this allows
 \begin{equation}
-\nhat^{\top} \mathbf{x} + d = 0.
-\label{eq:plane}
+    \label{eq:ground_plane}
+    \nhat^{\top}\mathbf{x} + d = 0 .
 \end{equation}
 
 \subsubsection{Gemini Detection}
 The RGB frame is sent to Gemini, yielding raw 2-D boxes and segmentation masks. Each detection is processed as follows.
+A resized RGB image, the detection \texttt{mode}, and an \texttt{agent\_prompt} are passed to Gemini~2.5.  The VLM returns JSON conforming to a minimal schema (\textit{label}, \textit{box\_2d}, \textit{mask}).  Malformed or schema-violating outputs will trigger a validation error in the datacentric pipeline, where the validation is performed within the \emph{validator} methods of the respective \textsc{Pydantic} models.
+% <From Presentation: extract information and transform into a qualitative flowing text>
+% • Prompt & RGB-Image → Gemini → {label, AABB, base64 mask}
+% • Structured Output Parsing & Multiple Validation steps via Pydantic
+% → retry if failed
+% • Reasoning for complex detection mode (path_description)
+% </From Presentation: extract information and transform into a qualitative flowing text>
+% TODO: Refer to both the algorithm and the figure below, text should wrap around the algorithm and the figure
+%  TODO: Explain the flow chart within the figure!
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/gemini_seq.pdf}
+    \caption{Processing sequence for Gemini detections.}
+    \label{fig:gemini-seq}
+\end{figure}
+
+\subsubsection{Geometric Processing}
+The detections and segmentations provided by Gemini are processed to extract 3-D attributes such as depth, yaw, and height. The geometric processing pipeline is illustrated in \autoref{fig:geom-pipeline} and described in Algorithm~\ref{alg:gemini_detection}.
 
 \begin{algorithm}[H]
 \caption{Processing Gemini Detections}
@@ -68,64 +111,92 @@ The RGB frame is sent to Gemini, yielding raw 2-D boxes and segmentation masks. 
 \end{algorithmic}
 \end{algorithm}
 
-\subsubsection{Depth Statistics}
-For all valid depth values \(\D\) inside a mask the basic statistics are
-\begin{align}
-    \text{min} &= \text{nearest\_nonzero}(\D), \\
-    \text{median} &= \operatorname{percentile}(\D,50), \\
-    \text{max} &= \operatorname{percentile}(\D,90).
-\end{align}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/geom_pipeline.png}
+    \caption{Geometric processing pipeline for 3D detections.}
+    \label{fig:geom-pipeline}
+\end{figure}
 
-The helper function \texttt{nearest\_nonzero} selects the smallest inlier depth:
+\subsubsection{Mask Processing}
+
 \begin{algorithm}[H]
-\caption{nearest\_nonzero}
-\label{alg:nearest_nonzero}
+\caption{Process Mask: Thresholding, Resizing, and Erosion}
+\label{alg:mask_processing}
 \begin{algorithmic}[1]
-\STATE \textbf{Input:} depth set \(\D\)
-\STATE \textbf{Output:} smallest inlier depth or \(0\)
-\IF{\(\D=\emptyset\)}
-    \RETURN \(0\)
-\ENDIF
-\STATE \(m \gets \operatorname{median}(\D)\)
-\STATE \(s \gets \operatorname{median}(|\D-m|)\)
-\STATE \(\D' \gets \{\,d\in \D \mid m - k s \le d \le m + k s \}\)
-\IF{\(\D' \neq \emptyset\)}
-    \RETURN \(\min(\D')\)
-\ELSE
-    \RETURN \(\min(\D)\)
-\ENDIF
+\STATE \textbf{Input:}
+\STATE \quad Prob. mask \(\hat{\mathbf{M}} \in [0,1]^{h \times w}\)
+\STATE \quad AABB \(\mathbf{b} = (x_0, y_0, x_1, y_1)\)
+\STATE \quad Image size \(H \times W\)
+\STATE \quad Threshold \(\theta \in (0,1)\)
+\STATE \quad Structuring element \(\mathbf{S}^{(3)} \in \{0,1\}^{3 \times 3}\)
+\STATE \textbf{Output:}
+\STATE \quad Eroded binary mask \(\mathbf{M}' \in \{0,1\}^{H \times W}\)
+\STATE \(\mathbf{M} \leftarrow \text{AlignWithBoundingBox}(\hat{\mathbf{M}}, \mathbf{b}, H, W)\) \COMMENT{Resize \& align w/ AABB}
+\STATE \(\mathbf{M} \leftarrow [\mathbf{M} \geq \theta]\) \COMMENT{Threshold to binary mask}
+\STATE \(\mathbf{M}' \leftarrow \mathbf{M} \ominus \mathbf{S}^{(3)}\) \COMMENT{Erode mask}
+\RETURN \(\mathbf{M}'\)
 \end{algorithmic}
 \end{algorithm}
 
+
+\subsubsection{Compute Depth}
+% TODO: add qualitative description
+\begin{equation}
+    d_{MAD} = \min\bigl\{d \in \mathcal{D}_{\text{valid}} : L \le d \le U \bigr\}
+\end{equation}
+
+\begin{equation}
+\begin{aligned}
+\mathcal{D}_{\text{valid}} &= \{d \in \mathcal{D} : d > 0\},\\
+m &= \mathrm{median}\bigl(\mathcal{D}_{\text{valid}}\bigr),\\
+\mathrm{MAD} &= \mathrm{median}\bigl(|\mathcal{D}_{\text{valid}} - m|\bigr),\\
+L &= m - k_{L} \cdot \mathrm{MAD},\quad U = m + k_{U} \cdot \mathrm{MAD},\\
+\end{aligned}
+\end{equation}
+
 \subsubsection{Computing 3D Center Points}
-Pixel coordinates \((x,y)\) with depth \(d\) are converted to camera coordinates
-\begin{align}
-    x_c &= \tfrac{(x-c_x)\, d}{f_x}, \\
-    y_c &= \tfrac{(y-c_y)\, d}{f_y}, \\
-    z_c &= d.
-\end{align}
-Bounding box centers use
-\begin{align}
-    d &= \text{nearest\_nonzero}(\Z[y_0:y_1, x_0:x_1]), \\
-    u &= \tfrac{x_0+x_1}{2},\quad v = \tfrac{y_0+y_1}{2}, \\
-    \mathbf{p}_c &= \text{pix\_to\_cam}((u,v),d,\K)
-\end{align}
-and mask centers use
-\begin{align}
-    d &= \text{nearest\_nonzero}(\Z[\Ms>0]), \\
-    u &= \operatorname{median}\{x_i \mid \Ms(x_i,y_i)>0\}, \\
-    v &= \operatorname{median}\{y_i \mid \Ms(x_i,y_i)>0\}, \\
-    \mathbf{p}_c &= \text{pix\_to\_cam}((u,v),d,\K).
-\end{align}
+
+\begin{equation}
+\mathbf{p}_{\mathrm{centroid}}
+=
+\begin{bmatrix}
+u_{\mathrm{centroid}}\\[6pt]
+v_{\mathrm{centroid}}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\displaystyle
+\mathrm{median}\bigl(\{\,u \mid \mathbf{M}'(u,v)=1\}\bigr)
+\\[10pt]
+\displaystyle
+\mathrm{median}\bigl(\{\,v \mid \mathbf{M}'(u,v)=1\}\bigr)
+\end{bmatrix}
+\label{eq:centroid}
+\end{equation}
+
+\begin{equation}
+\mathbf{p}^c
+=
+d_{\mathrm{MAD}}\;\mathbf{K}^{-1}
+\begin{bmatrix}
+u_{\mathrm{centroid}}\\[4pt]
+v_{\mathrm{centroid}}\\[4pt]
+1
+\end{bmatrix}
+\end{equation}
 
 \subsubsection{Estimating Clock Direction}
-Given a 3-D point \((x_c, y_c, z_c)\) in camera coordinates the bearing and clock position are
-\begin{align}
-    \theta &= \operatorname{atan2}(x_{c}, z_{c}), \\
-    \alpha &= (\theta\tfrac{180}{\pi}) \bmod 360, \\
-    h &= \pmod{12}(\operatorname{round}(\alpha/30)), \\
-    h &= \begin{cases}12,& h=0\\h,&\text{otherwise} \end{cases}.
-\end{align}
+Given a 3D point \( \pc \) in camera coordinates the yaw angle \(\psi_{\text{deg}}\) and clock position \(\psi_{\text{clk}}\) are computed as follows:
+
+
+% TODO: need to mention here, that psi is the angle around the verical axis and hence in the horizontal (x, z) plane
+$$
+\begin{aligned}
+\psi_{\text{deg}} &= \arctan2\left(x^c, z^c\right) \cdot \frac{180°}{\pi} \\
+\psi_{\text{clk}} &= \left\lfloor \frac{\psi_{\text{deg}}}{30°} + 0.5 \right\rfloor \bmod 12
+\end{aligned}
+$$
 
 \subsubsection{Estimating Height Relative to the Ground}
 With ground plane parameters \((\nhat,d)\) the height of a point \(\mathbf{p}\) is
@@ -134,24 +205,29 @@ h = \nhat^{\top} \mathbf{p} + d.
 \label{eq:height}
 \end{equation}
 
-\subsubsection{SE (3) Transforms}
-Transforming from camera to world coordinates uses
-\begin{equation}
-\mathbf{X}_w = \T_{WC}^{-1}
-\begin{bmatrix}
-    \mathbf{x}_c \\
-    1
-\end{bmatrix}.
-\label{eq:cam_to_world}
-\end{equation}
+% \subsubsection{
+\subsubsection{Describing Relative Motion}
+% Provide the LiveAgent with description of relative movement, when frames change:
 
-The following steps describe how a motion between two \emph{ego poses} is described such that it can be injected into the model context. The transformation from one pose \(\mathbf{T}_A\) to another \(\mathbf{T}_B\) is given by:
+
+% LiveAgent will receive a system message with
+% relative description
+% overview of all previous detections
+% It will then do internal “reasoning”, listing potentially relevant entities in the scene
+% Previous detections can be retrieved in current ego frame.
+
+
+The following steps describe how a motion between two SE(3) \emph{ego poses} is described such that it can be injected into the model context. The transformation from one pose \(\T_A\) to another \(\T_B\) is given by:
 \begin{equation}
-\T_{rel} = \mathbf{T}_B \mathbf{T}_A^{-1},\quad
-d = \|\boldsymbol{t}_{rel}\|,\quad
+\T_{rel} = \T_B \T_A^{-1},\quad
+d = \|\boldsymbol{\tau}_{rel}\|,\quad
 \psi = \operatorname{atan2}(-R_{32}, R_{11}).
 \label{eq:relative_motion}
 \end{equation}
+
+The translation vector \(\boldsymbol{\tau}_{rel} = \T_{rel}[:3, 3]\) is the relative motion in meters, and \(\psi\) is the \emph{yaw}-rotation around the \emph{vertical} axis. \( R_{32} \), and \( R_{11} \) contain the negative sine and cosine of the rotation angle, respectively.\\
+We then provide the model with a system message, that describes the relative motion, and also provide it with an overview of all cached detections from previous frames.
+
 
 \subsubsection{Resulting Structure}
 After processing, all fields are stored in \texttt{AABBDetection}: normalized box, mask, depth statistics, 3-D center, rotation in degrees and clock hours, and height from the ground plane.  These detections across frames are transformed into the ego frame for path planning.

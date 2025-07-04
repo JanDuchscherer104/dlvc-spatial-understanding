@@ -1,27 +1,43 @@
+% \section{Background}
+
+% \subsection{RANSAC}
+% % Content about RANSAC algorithm for ground plane detection
+% % - Mathematical foundations
+% % - Application in spatial understanding
+% % - Implementation details
+
+% \subsection{Depth Calculation}
+% % Content about depth calculation methods
+% % - Depth estimation techniques
+% % - Integration with RGB data
+% % - Accuracy considerations
+
+% \subsection{Gemini SDK}
+% % Content about Gemini SDK capabilities
+% % - Live API functionality
+% % - Structured outputs
+% % - Integration methods
+% % - Performance characteristics
+
+% \subsection{Native Capabilities of Gemini and other VLMs}
+% % Content about VLM capabilities for spatial understanding
+% % - Scene understanding capabilities
+% % - Spatial reasoning
+% % - Object detection and recognition
+% % - Limitations and strengths
+
 \section{Background}
 
-\subsection{RANSAC}
-% Content about RANSAC algorithm for ground plane detection
-% - Mathematical foundations
-% - Application in spatial understanding
-% - Implementation details
+\subsection{Robust Plane Detection with RANSAC}
+A reliable estimate of the ground plane is essential for converting per-pixel
+depth values into metric \emph{heights}. We adopt the classic \emph{Random Sample Consensus} (RANSAC) paradigm. Given an unstructured point cloud $\Pcloud=\{\pc_i\}$, RANSAC iteratively (1) samples three non-collinear points, (2) fits a candidate plane $\nhat^T\mathbf{x}+d=0$, (3) counts inliers $\|\nhat^T\mathbf{p}_i+d\|<\varepsilon$, and (4) retains the model with maximal consensus.  The pseudo-code in algorithm~\autoref{alg:ransac_plane} runs in $\mathcal{O}(N_\text{iter}|\mathcal{P}|)$\cite{Open3DDocsPrimary252c867,spatialvlmChen2024}.
 
-\subsection{Depth Calculation}
-% Content about depth calculation methods
-% - Depth estimation techniques
-% - Integration with RGB data
-% - Accuracy considerations
+\subsection{Gemini's Image Understanding Capabilities}
+Google's Gemini models are \emph{natively multimodal} and offer powerful image understanding capabilities, including \emph{zero-shot} semantic segmentation, as well as axis-aligned bounding box (AABB) and oriented bounding box (OBB) detection. The OBBs are provided as metric center points, axis-aligned dimensions, and euler angles, meaning that Gemini is already capable of quantitative resoning about metric spatial relationships. However, since it only sees the RGB images, thesse outputs are not of sufficient trustworthiness for our use case, as they are not based on \emph{true} depth estimates, but rather on the RGB image content~\cite{googleImageUnderstanding2025}.
 
-\subsection{Gemini SDK}
-% Content about Gemini SDK capabilities
-% - Live API functionality
-% - Structured outputs
-% - Integration methods
-% - Performance characteristics
+In our work we utilized models of the Gemini 2.0 family, which are the most capable models in terms of OBB detection, while they lack the capability to provied semantic segmentation masks, which was introduced in the Gemini 2.5 family. Gemini 2.5 Pro and Flash both offer native \emph{reasoning} capabilities to allow for more complex spatial reasoning tasks, such as \emph{pointing}~\cite{googleImageUnderstanding2025}, or identifying a destination in the scene and identifying a feasible path together with all obstacles and landmarks along the way. The latest Pro model is optimized for \emph{enhanced thinking} and  \emph{multimodal understanding} and hence appears to be the most suitable model for our use case. The Google GenAI SDK supports structure outputs~\cite{googleStructuredOutput2025}, which allows us to define a schema for the expected output format, which is essential for our use case, since complex data structures, such as segmentation masks, need to be parsed.
 
-\subsection{Native Capabilities of Gemini and other VLMs}
-% Content about VLM capabilities for spatial understanding
-% - Scene understanding capabilities
-% - Spatial reasoning
-% - Object detection and recognition
-% - Limitations and strengths
+\subsection{Gemini Live API}
+Real-time conversations leverage the \textbf{Live API} (preview) which streams
+responses with latencies \( <100 \)  ms when configured for text~\cite{googleLiveApi2025}.  Only one response modality (Text \textit{or} Audio) is allowed per session; audio-only sessions last 15 min, mixed Audio/Video sessions 2 min.  Voice-Activity Detection (VAD) cancels generation on user interruption, and a \texttt{thinking\_budget} allows the Gemini 2.5 Flash Live model to perform reasoning before emitting a response.\\
+The Live API model supports \emph{function calling}, which enables it to be employed as a \emph{spatial guidance agent} that can provide \emph{qualitative} scene descriptions and use \emph{external tools} to answer \emph{quantitative} queries.

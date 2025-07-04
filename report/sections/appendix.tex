@@ -57,13 +57,13 @@
 \caption{RANSAC Plane Detection}
 \label{alg:ransac_plane}
 \begin{algorithmic}[1]
-\STATE \textbf{Input:} Point cloud $\mathcal{P}$, threshold $\epsilon$
+\STATE \textbf{Input:} Point cloud $\mathcal{P}$, threshold $\varepsilon$
 \STATE \textbf{Output:} Plane normal $\nhat$, distance $d$
 \STATE Initialize best\_count = 0, best\_plane = null
 \FOR{$i = 1$ to $N_{\text{iter}}$}
     \STATE Sample 3 random points from $\mathcal{P}$
     \STATE Fit plane: $\nhat \mathbf{x} + d = 0$
-    \STATE Count inliers within threshold $\epsilon$
+    \STATE Count inliers within threshold $\varepsilon$
     \IF{inliers $>$ best\_count}
         \STATE best\_plane = current\_plane
         \STATE best\_count = inliers

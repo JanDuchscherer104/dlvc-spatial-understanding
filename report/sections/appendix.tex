@@ -81,34 +81,32 @@ The following UML component diagrams illustrate the modular architecture of the 
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.9\linewidth]{figures/live_agent_component.pdf}
+    \includegraphics[width=0.95\linewidth]{figures/live_agent_component.pdf}
     \caption{Live Agent component architecture showing the actor pattern implementation with message-passing interfaces, configuration management, and finite state machine for tool execution flow.}
     \label{fig:live-agent-component}
 \end{figure}
-
-The Live Agent component (\autoref{fig:live-agent-component}) implements an actor-based concurrency model with typed commands and events. The \texttt{GeminiLiveAgent} orchestrates real-time audio/text interactions through a finite state machine that manages tool execution without exposing intermediate steps to users.
+The \emph{GeminiLiveAgent} realises an asynchronous \emph{actor}~model: UI threads enqueue typed \texttt{\_Cmd} messages, while worker tasks emit \texttt{\_Evt} objects. The absence of shared memory eliminates data races and reduces the risk of async-related errors. Finite-state logic—formalised by the \texttt{GenState} enum-ensures that ensures that only selected responses of the Live Agent are returned to the user and simplifies parsing from the streaming output.
 
 \subsubsection{Gemini Scene Understanding}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.9\linewidth]{figures/gemini_aabb_detseg_component.pdf}
+    \includegraphics[width=0.95\linewidth]{figures/gemini_aabb_detseg_component.pdf}
     \caption{Scene understanding component showing the data transformation pipeline from raw VLM output to processed spatial detections with 3D coordinates and visualizations.}
     \label{fig:scene-understanding-component}
 \end{figure}
 
-The Scene Understanding component (\autoref{fig:scene-understanding-component}) demonstrates the complete data transformation pipeline. Raw JSON output from Gemini VLM (\texttt{RawAABBDetSeg}) undergoes validation and spatial processing to produce structured detections (\texttt{AABBDetection}) with 3D coordinates, which are then collected and enhanced with visualizations.
-
+The Scene Understanding component (\autoref{fig:scene-understanding-component}) demonstrates the complete data transformation pipeline. Raw JSON output from Gemini (\texttt{RawAABBDetSeg}) undergoes validation and spatial processing to produce structured detections (\texttt{AABBDetection}), including all computed sought-after spatial properties of any detected objects
 \subsubsection{StrayScanner Data Handling}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.9\linewidth]{figures/data_handling_component.pdf}
+    \includegraphics[width=0.95\linewidth]{figures/data_handling_component.pdf}
     \caption{Data handling component architecture for RGB-D dataset management, showing the relationship between dataset configuration, parsing, and output generation.}
     \label{fig:data-handling-component}
 \end{figure}
 
-The Data Handling component (\autoref{fig:data-handling-component}) manages iPhone LiDAR datasets through a layered architecture. \texttt{StrayDataset} provides high-level access to RGB-D frames, utilizing \texttt{StrayDataParser} for low-level file operations and returning \texttt{DatasetOut} objects with camera parameters and ground plane information.
+The Data Handling component (\autoref{fig:data-handling-component}) provides structured samples stemming from a StrayScanner dataset which was captured using an iPhone Pro with LiDAR.~\texttt{StrayDataset} provides high-level access to all relevant objects of any given frame by utilizing \texttt{StrayDataParser} for low-level file operations and parsing. It caches and returns \texttt{DatasetOut} objects with RGB-D images, camera parameters, and ground plane information.
 
 \subsubsection{Utilities}
 
@@ -119,9 +117,9 @@ The Data Handling component (\autoref{fig:data-handling-component}) manages iPho
     \label{fig:utils-component}
 \end{figure}
 
-The Utilities component (\autoref{fig:utils-component}) provides essential infrastructure services. \texttt{BaseConfig} implements the configuration-as-factory pattern enabling type-safe object instantiation, while \texttt{Console} provides structured logging and \texttt{PathConfig} manages singleton configuration for API keys and data paths.
+The Utilities component (\autoref{fig:utils-component}) provides essential infrastructure services. \texttt{BaseConfig} implements the Config-as-Factory pattern enabling type-safe object instantiation, while \texttt{Console} provides \emph{rich} structured logging and \texttt{PathConfig} manages singleton configuration for API keys and data paths.
 
-\subsubsection{Actor Pattern Component}
+\subsubsection{Actor Pattern}
 
 \begin{figure}[H]
     \centering
@@ -130,19 +128,7 @@ The Utilities component (\autoref{fig:utils-component}) provides essential infra
     \label{fig:actor-pattern-component}
 \end{figure}
 
-The Actor Pattern component (\autoref{fig:actor-pattern-component}) implements thread-safe message passing through typed protocols. Commands (\texttt{AskCmd}, \texttt{AudioCmd}, \texttt{SetFrameCmd}) and events (\texttt{TextEvt}, \texttt{AudioEvt}, \texttt{DetectionsEvt}, \texttt{ErrorEvt}) ensure clean separation between UI and processing logic.
-
-\subsubsection{Data Contracts}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\linewidth]{figures/data_contracts_component.pdf}
-    \caption{Data contracts component showing the transformation pipeline from raw VLM output to processed detections, with validation and type safety guarantees throughout the data flow.}
-    \label{fig:data-contracts-component}
-\end{figure}
-
-The Data Contracts component (\autoref{fig:data-contracts-component}) defines the complete data transformation pipeline with strong type guarantees. \texttt{RawAABBDetSeg} captures unvalidated VLM output, \texttt{AABBDetection} represents individual validated detections with 3D coordinates, and \texttt{AABBDetections} aggregates multiple detections with metadata and visualization capabilities.
-
+The Actor Pattern (\autoref{fig:actor-pattern-component}) implements thread-safe message passing through typed protocols. Commands (\texttt{AskCmd}, \texttt{AudioCmd}, \texttt{SetFrameCmd}) and events (\texttt{TextEvt}, \texttt{AudioEvt}, \texttt{DetectionsEvt}, \texttt{ErrorEvt}) ensure clean separation between UI and processing logic and track the run-time between any request and the respective response. This pattern allows for asynchronous processing and simplifies the interaction between different components of the system.
 
 \section{Sample Results}
 

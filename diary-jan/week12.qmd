@@ -1,0 +1,38 @@
+## Week 12 - June 09 - June 13, 2025
+
+### Tasks Worked On
+
+- **GeminiLiveAgent v0.1**: Built first brittle prototype using the `LiveAPI` capable of reading single RGB-D frame, running  AABBSegmentation, and answering *one-object* distance queries, rotations etc. Monolithic ad-hoc implementation without proper modularity, and proper async handlling.
+- **Prompt & Schema**: Developed initial system prompt and messages for the LiveAgent, including the Tool declarations for the AABB segmentation.
+- **Streamlit UI**: Created chat interface with response streaming and raw detection sidebar visualization.
+- **Async Voice Capture**: Implemented basic asynchronous voice capture using `streamlit_webrtc` to allow for real-time voice2voice interaction.
+- **AABB Integration**: Display latest detection results in the streamlit UI.
+- **Project Cleanup**: Removed submodules, updated configurations, reorganized structure, moved unused and discarded implementations to `.deprecated`, switched to `poetry` for dependency management, and updated Documentation.
+
+### Problems Encountered
+
+- **Brittle Architecture**: Single tightly-coupled class with bad separation of concerns (GeminiLiveAgent & GeminiLiveAgentConfig).
+- **Bad Asynch Handlign**: Had to debug many issues because of primitive aync communication between the Streamlit UI and the GeminiLiveAgent.
+- **Exposure of intermediate steps**: Intermediate steps leaked to user. Often answers in an unwanted format.
+- **Unreliable Depth Estimation**: Noisy masks often lead to inconsistent spatial descriptions.
+- **Understanding Tool Usage**: The fact that the model will execute python code for every tool use, where each tool is accessible via `default_api` led to some confusion.
+-
+
+### Plans for Next Week
+
+- Refactor to modular actor pattern with architecture queues for communication and implement proper message passing protocols or streaming final responses.
+- Implement finite state machine to handle exposure of model output to user.
+- Improve depth estimation to account for false positives in the prediction mask.
+- Implement factory pattern and prompt templates that can easily be configured in various ways to allow for different response types (e.g. deg vs clock units, precision).
+- Implement factory pattern to build the Tools declarations.
+
+
+### Time Spent
+
+| Task                               | Time Spent |
+|------------------------------------|-----------:|
+| Live Agent Prototype               |  8.0 hours |
+| Streamlit UI                       |  3.0 hours |
+| AABB Integration & Bug Fixes       |  4.0 hours |
+| Project Cleanup & Documentation    |  2.5 hours |
+| **Total**                          | **17.5 hours** |

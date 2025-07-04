@@ -1,0 +1,61 @@
+## Week 10 - Appendix
+
+### Image Understanding Summary
+
+Based on the [Gemini Image Understanding documentation](https://ai.google.dev/gemini-api/docs/image-understanding), the primary capabilities and usage patterns include:
+
+- **Image Input Methods**
+
+  - **File API**
+    - Upload via `client.files.upload(file="path/to/img.jpg")`.
+    - Use when total request size (image + text + other) > 20 MB or to reuse the same image in multiple calls.
+  - **Inline Data** (for single images, small payloads < 20 MB)
+      ```python
+      types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
+      ```
+      This will create a `types.Blob` object - as for all other inline data.
+  - **`mime_type`**
+    - An IANA media type that tells the API how to interpret the binary part ~ [Google GenAI Docs](https://cloud.google.com/vertex-ai/generative-ai/docs/samples/generativeaionvertexai-gemini-controlled-generation-response-schema).
+
+
+- **Segmentation Workflow (2.5+)**
+
+  - Model returns a JSON list of entries with:
+
+    - `box_2d`: same normalized format.
+    - `label`: descriptive string.
+    - `mask`: base64-encoded PNG probability map (0–255).
+  - Post-process: decode the PNG, resize to the box’s pixel dimensions, then threshold at chosen confidence (e.g., >=127).
+
+- **Best Practices**
+
+  - Ensure correct EXIF orientation and use sharp, well-lit images.
+  - Place your text prompt **after** all image parts in the `contents` array.
+  - Use the File API for large or repeatedly used images; inline for one-off small assets.
+  - For multi-step pipelines (e.g., detect->segment->describe), split into separate requests with minimal schemas.
+
+---
+
+### google.genai.types.GenerateContentConfig Summary
+
+- **`GenerateContentConfig`** (model configuration)
+
+  - **Steering**:
+    - `system_instruction`: high-level directive (e.g., “Answer concisely”).
+
+  - **Sampling & Control**:
+    - `temperature`, `top_p`, `top_k`, `seed` for randomness.
+        - `temperature`: measure for randomness in the selection of the next token. T -> 0: argmax sampling, T -> inf: uniform sampling.
+        - `top_p`: nucleus sampling, where the model samples from the smallest set of tokens whose cumulative probability exceeds `p`.
+        - `top_k`: restricts the sampling to the top `k` tokens by probability.
+    - `max_output_tokens`, `stop_sequences`, `candidate_count` for length and termination.
+  - **Structured Output**:
+    - `response_mime_type` (default is plain text):
+      - `application/json` -> JSON following provided `response_schema`.
+      - `text/x.enum`  -> select a single enum value.
+    - `response_schema` -> Pydantic `BaseModel`, `genai.types.Schema`, or equivalent dict.
+
+  - **Advanced Features**:
+    - `presence_penalty`, `frequency_penalty` (diversity control).
+    - `response_logprobs` for token-level probabilities.
+    - Function calling (`FunctionDeclaration`), retrieval tools, safety settings.

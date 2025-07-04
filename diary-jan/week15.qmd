@@ -1,0 +1,23 @@
+## Week 15 - June 30 - July 04, 2025
+
+### Tasks Worked On
+
+- Write final report (Background, Concept, Appendix, Related Work (SpatialVLM))
+- Create final presentation slides
+- Finish development diary
+
+
+### Time Spent
+
+| Task                               | Time Spent |
+|------------------------------------|-----------:|
+| Report| 12.0 hours |
+| Presentation Slides | 5.5 hours |
+| Diaries | 2.0 hours |
+| **Total**                          | **19.5 hours** |
+
+
+
+## **Total Time Spent on Project:**
+
+- **128 hours**

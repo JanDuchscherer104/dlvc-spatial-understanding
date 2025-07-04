@@ -29,14 +29,11 @@
     ![Segmentation using `gemini-2.5-flash-preview-04-17`](figures/gemini_2.5-flash_is_wakable_2.png)
     :::
 
-    The left figure shows a partial segmentation of the walkable area, where the top part of the image is not segmented correctly. The corresponding bounding box would have needed to cover the entire image. The right figure shows an attempt to perform segmentation of the walkable area without grouding the segmentation in a given bounding box.
+    The left figure shows a partial segmentation of the walkable area, where the top part of the image is not segmented correctly. The corresponding bounding box would have needed to cover the entire image. The right figure shows an attempt to perform segmentation of the walkable area without grounding the segmentation in a given bounding box.
 
 
-
-
-  - **3D Object Bounding Boxes**: Gemini can detect 3D oriented bounding boxes (OBBs) in images, where it provides the the center coordinates and dimensoins of the bounding box in metric units, as well as the roll, pitch and yaw angles in degrees. These detections would allow us to create a bird's eye view (BEV) representation of the scene, which is useful for navigation tasks.
+  - **3D Object Bounding Boxes**: Gemini can detect 3D oriented bounding boxes (OBBs) in images, where it provides the the center coordinates and dimensions of the bounding box in metric units, as well as the roll, pitch and yaw angles in degrees. These detections would allow us to create a bird's eye view (BEV) representation of the scene, which is useful for navigation tasks.
   - Experimented with different models and their capabilities for 3D spatial understanding, including AABB detection, segmentation, and trajectory planning.
-  ![]
 
 
 - An overview of the [Gemini Model Zoo](https://ai.google.dev/gemini-api/docs/image-understanding) for Image Understanding.
@@ -99,101 +96,16 @@ Given the list of points and labels, a new instance of Gemini was then prompted 
   A general prompt without referencing specific obstactles, and only providing the target, yielded invalid trajectories which collided with obstacles in the scene.
 
 
-### Image Understanding Summary
-
-Based on the [Gemini Image Understanding documentation](https://ai.google.dev/gemini-api/docs/image-understanding), the primary capabilities and usage patterns include:
-
-- **Image Input Methods**
-
-  - **File API**
-    - Upload via `client.files.upload(file="path/to/img.jpg")`.
-    - Use when total request size (image + text + other) > 20 MB or to reuse the same image in multiple calls.
-  - **Inline Data** (for single images, small payloads < 20 MB)
-      ```python
-      types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
-      ```
-  - **Multiple Images**
-    - Provide a list mixing File references and inline `google.genai.types.Part` objects in `*.contents` to compare or contrast images in one request.
-
-- **Supported Image MIME Types**
-  - `image/png`
-  - `image/jpeg`
-  - `image/webp`
-  - `image/heic`
-  - `image/heif`
-
-- **Segmentation Workflow (2.5+)**
-
-  - Model returns a JSON list of entries with:
-
-    - `box_2d`: same normalized format.
-    - `label`: descriptive string.
-    - `mask`: base64-encoded PNG probability map (0–255).
-  - Post-process: decode the PNG, resize to the box’s pixel dimensions, then threshold at your chosen confidence (e.g., >=127).
-
-- **Best Practices**
-
-  - Ensure correct EXIF orientation and use sharp, well-lit images.
-  - Place your text prompt **after** all image parts in the `contents` array.
-  - Use the File API for large or repeatedly used images; inline for one-off small assets.
-  - For multi-step pipelines (e.g., detect→segment→describe), split into separate requests with minimal schemas.
-
----
-
-### google.genai.types Configuration Summary
-
-The `google.genai.types` module defines the building blocks for constructing `generate_content` requests:
-
-- **Contents (`ContentUnion`)**
-
-  - Accepts **strings** (plain text prompts) and **`Part`** objects (binary data, files, blobs).
-  - **Inline binary**:
-
-    ```python
-    types.Part.from_bytes(data=image_bytes, mime_type="image/png")
-    ```
-  - **File references**:
-
-    ```python
-    types.Part.from_uri(file_uri="gs://...", mime_type="image/jpeg")
-    ```
-
-- **`mime_type`**
-
-  - An IANA media type that tells the API how to interpret the binary part ~ [Google GenAI Docs](https://cloud.google.com/vertex-ai/generative-ai/docs/samples/generativeaionvertexai-gemini-controlled-generation-response-schema).
-  - **Images**: `image/png`, `image/jpeg`, `image/webp`, `image/heic`, `image/heif`
-  - **Audio/Video**: e.g., `audio/wav`, `video/mp4`
-  - **Documents**: e.g., `application/pdf`
-
-- **`GenerateContentConfig`** (model configuration)
-
-  - **Steering**:
-    - `system_instruction`: high-level directive (e.g., “Answer concisely”).
-
-  - **Sampling & Control**:
-    - `temperature`, `top_p`, `top_k`, `seed` for randomness.
-    - `max_output_tokens`, `stop_sequences`, `candidate_count` for length and termination.
-  - **Structured Output**:
-    - `response_mime_type` (default is plain text):
-      - `application/json` → JSON following your `response_schema`.
-      - `text/x.enum`  → select a single enum value.
-    - `response_schema` → Pydantic `BaseModel`, `genai.types.Schema`, or equivalent dict.
-
-  - **Advanced Features**:
-    - `presence_penalty`, `frequency_penalty` (diversity control).
-    - `response_logprobs` for token-level probabilities.
-    - Function calling (`FunctionDeclaration`), retrieval tools, safety settings.
-
-
 ### Plans for Next Week
 
 ### Time Spent
 
 | Task                                       | Time Spent     |
 | ------------------------------------------ | -------------- |
+| GenAI SKD docs                             | 1 hour        |
 | Prompt engineering + model experimentation | 1.5 hours      |
 | 3D object detection + BEV rendering        | 2 hours      |
 | Segmentation integration + parsing         | 0.5 hours      |
 | Multiview correspondence experiments       | 0.5 hours      |
 | Prompt tuning + path planning evaluation   | 0.5 hours      |
-| **Total**                                  | **5 hours** |
+| **Total**                                  | **6 hours** |

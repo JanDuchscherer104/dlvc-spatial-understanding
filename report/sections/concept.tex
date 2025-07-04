@@ -252,6 +252,9 @@ We then provide the model with a system message, that describes the relative mot
 
 \subsubsection{Data Structure Integration}
 
-After processing, all spatial attributes are encapsulated in structured \texttt{AABBDetection} objects that include normalized bounding boxes, processed masks, depth statistics, 3D center coordinates, rotation measurements in both degrees and clock notation, and height relative to the ground plane. These standardized data structures (\autoref{fig:data-contracts-component}) enable consistent downstream processing and support the various operational modes of the Live Agent.
+After processing, all spatial attributes are encapsulated in structured \texttt{AABBDetection} objects that include normalized bounding boxes, processed masks, depth statistics, 3D center coordinates, rotation measurements in both degrees and clock notation, and height relative to the ground plane.
+\begin{equation}
+\texttt{AABBDetections} = \{ (\pc, \|\pc\|, \psi_{\text{clk}}, \psi_{\text{deg}} \bbox, h)^{(i)}\}_{i=1}^{N}
+\end{equation}
 
 The resulting detections can be efficiently cached and transformed across frames, supporting multi-view spatial reasoning and enabling the system to reference previously detected objects without recomputation, thereby improving both performance and temporal consistency in navigation assistance.

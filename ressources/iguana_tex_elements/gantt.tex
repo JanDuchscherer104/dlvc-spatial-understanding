@@ -67,7 +67,7 @@
     title height=1,
     % Enhanced bar styling with gradients and shadows
     bar label font=\bfseries\normalsize\color{darkgray},
-    bar label node/.append style={left=2.5cm, align=left},
+    bar label node/.append style={left=3.2cm, align=left}, % Adjusted for longer text
     bar/.append style={
       draw=primaryblue!80,
       fill=primaryblue!70,
@@ -95,7 +95,7 @@
     group peaks tip position=.5,
     % Enhanced milestone styling
     milestone label font=\bfseries\normalsize\color{accentred},
-    milestone label node/.append style={left=2.5cm, align=left},
+    milestone label node/.append style={left=3.2cm, align=left}, % Adjusted for longer text
     milestone/.append style={
       fill=accentred,
       draw=accentred!80,
@@ -105,17 +105,14 @@
     milestone height=0.6,
     % Month rule styling
     calendar month rule/.append style={draw=darkgray, line width=1.5pt}
-  ]{2025-03-22}{2025-07-04}
+  ]{2025-03-20}{2025-07-04}
   \gantttitlecalendar{month=name, week}\\
 
   \ganttgroup{Jan}{2025-03-22}{2025-07-04} \\
   \ganttbar[progress=100, bar/.append style={fill=accentgreen!70, draw=accentgreen!80}]{Repo Setup}{2025-03-22}{2025-03-28} \\
   \ganttbar[progress=100, bar/.append style={fill=accentorange!70, draw=accentorange!80}]{Explore Gemini SDK \& Image Understanding Notebooks}{2025-03-23}{2025-03-27} \\
-
-  % Literature Review Group
   \ganttbar[progress=100, bar/.append style={fill=accentorange!60, draw=accentorange!70}]{Lit. Review (SpatialBot \( \rightarrow \) Video-3D LLM \( \rightarrow \) SpatialVLM + VQASynth)}{2025-03-31}{2025-04-01}
   \ganttbar[progress=100, bar/.append style={fill=accentorange!60, draw=accentorange!70}]{}{2025-04-19}{2025-04-25} \\
-
   \ganttbar[progress=100, bar/.append style={fill=primaryblue!70, draw=primaryblue!80}]{Stray Scanner Parser \& Dataset}{2025-04-01}{2025-04-04} \\
   \ganttbar[progress=100, bar/.append style={fill=secondaryblue!70, draw=secondaryblue!80}]{Initial Gemini AABB Pipeline}{2025-04-03}{2025-04-06} \\
   \ganttbar[progress=100, bar/.append style={fill=accentgreen!70, draw=accentgreen!80}]{Config Handling \& Logging}{2025-04-04}{2025-04-13} \\
@@ -130,7 +127,15 @@
   \ganttbar[progress=100, bar/.append style={fill=primaryblue!70, draw=primaryblue!80}]{RANSAC Implementation \& Visualization}{2025-06-20}{2025-06-22} \\
   \ganttbar[progress=100, bar/.append style={fill=accentred!70, draw=accentred!80}]{Clean Repo, Report \& Slides}{2025-06-27}{2025-07-04} \\
 
-  \ganttgroup{Lukas}{2025-03-22}{2025-07-04} \\
+  \ganttgroup{Lukas}{2025-03-20}{2025-06-30} \\
+  \ganttbar[bar/.append style={fill=accentorange!70, draw=accentorange!80}]{Research}{2025-03-20}{2025-04-02} \\
+  \ganttbar[bar/.append style={fill=primaryblue!70, draw=primaryblue!80}]{SpatialBot}{2025-04-02}{2025-04-15} \\
+  \ganttbar[bar/.append style={fill=primaryblue!70, draw=primaryblue!80}]{Meta PE}{2025-04-16}{2025-05-06} \\
+  \ganttbar[bar/.append style={fill=primaryblue!70, draw=primaryblue!80}]{PE Pipeline}{2025-05-07}{2025-05-20} \\
+  \ganttbar[bar/.append style={fill=primaryblue!70, draw=primaryblue!80}]{SpatialVLM}{2025-05-21}{2025-06-04} \\
+  \ganttbar[bar/.append style={fill=primaryblue!70, draw=primaryblue!80}]{Gemini Live API}{2025-06-04}{2025-06-17} \\
+  \ganttbar[bar/.append style={fill=accentgreen!70, draw=accentgreen!80}]{Clean Repo \& small changes}{2025-06-10}{2025-06-20} \\
+  \ganttbar[bar/.append style={fill=accentred!70, draw=accentred!80}]{Report and Presentation}{2025-06-18}{2025-06-30} \\
 
   % -------------------------
   % MILESTONES

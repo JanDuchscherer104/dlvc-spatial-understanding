@@ -6,7 +6,7 @@ As discussed in previous studies~\cite{googleFinetuning2025}, spatial understand
 
 \subsubsection{SpatialBot}
 SpatialBot is a VLM designed for spatial tasks, by incorporating depth images and data into its outputs. 
-It is trained on a hierarchy of spatial tasks, with are categorized as log, middle and high-level.
+It is trained on a hierarchy of spatial tasks, with are categorized as low, middle and high-level.
 \begin{itemize}
     \item \textbf{Low-level tasks:} Direct querying of depth values from a depth map and exact information of these on set points
     \item \textbf{Middle-level tasks:} Comparing distances between objects, and calculating the relative position of objects in a scene.
@@ -20,13 +20,13 @@ Another feature that is highlighted in the paper is the ability to distinguish b
 This can also help in navigation where detecting hazards is important, with also means the system needs to be able to decide if an object is a poster or a real thread.
 
 Internally the SpatialBot framework uses a fine-tuned VLM with a curated RGB-D dataset. 
-It tries to specifically address the challenge of profiding consistent and accurate information for robotic systems.
-As seen later in this paper, we also used a lot of the same concepts in mapping depth values and profiding spatial information als seen here.\cite{SpatialBotCai2025}
+It tries to specifically address the challenge of providing consistent and accurate information for robotic systems.
+As seen later in this paper, we also used a lot of the same concepts in mapping depth values and providing spatial information als seen here.\cite{SpatialBotCai2025}
 
 \subsubsection{Video-3D LLM}
-Video-3D LLM is a model that enhances Mulitmodal Large Language Models (MLLMs) with sophisticated 3D spatial understanding capabilities.
-This tackles the challenge, that most MLLMs are only trained on 3D data with limits there capabilities in spatial reasoning.
-It is treating 3D scenes as dynamic videos and incorporating 3D data into the video representation.
+Video-3D LLM is a model that enhances Multimodal Large Language Models (MLLMs) with sophisticated 3D spatial understanding capabilities.
+This tackles the challenge, that most MLLMs are only trained on 2D data with limits there capabilities in spatial reasoning.
+It is treating 2D scenes as dynamic videos and incorporating 3D data into the video representation.
 This allows a more accurate understanding and goes in line with the goal of using a smartphone video stream as an input for our system.
 
 \begin{itemize}

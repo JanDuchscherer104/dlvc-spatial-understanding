@@ -15,11 +15,13 @@
 % Actually data-centric pipeline (chain of Pydantic models)
 % DetCache:
 % Get previous detections in ego-frame
-This section details the modular architecture of our 3-D spatial-understanding system (\autoref{fig:system-arch}) and formalises every processing step from raw RGB-D input to the enriched detection objects used by the \emph{Live\-Agent}.  All equations, algorithms, and figures are enumerated and explicitly referenced in the accompanying text to ensure traceability and reproducibility.
+This section details the architecture of our 3-D spatial-understanding system (\autoref{fig:system-arch}) and formalises every processing step from raw RGB-D input to the enriched detection objects used by the \emph{Live\-Agent}. % TODO: provide concise conceptual introduction to the LiveAgent, instead of just mentioning it here.
 
-%===================================================================
+This section presents the architecture and implementation of our real-time 3D spatial understanding system for visually impaired navigation assistance. The entire system is built around a low-latency \emph{LiveAgent} that orchestrates user interactions and tool calls. This agent is powered by the Gemini Live API, which allows it to provide real-time text responses, while Voice2Voice interaction remains a future goal.
+
 \subsection{System Architecture}\label{subsec:architecture}
-%===================================================================
+
+The system architecture implements a modular, event-driven design centered around three core components: the \textbf{Live Agent}, the \textbf{Scene Understanding Pipeline}, and the \textbf{Spatial Processing Pipeline}. The architecture follows the actor pattern (\autoref{fig:live-agent-component}) to ensure thread-safe communication and real-time responsiveness. All data flow is strictly typed using Pydantic models ensuring schema validation at every interface and enabling robust error handling throughout the pipeline. Figure~\ref{fig:system-arch} illustrates the overall data flow, which is triggered either by a user query or a frame change.
 
 \begin{figure}[t]
     \centering
@@ -28,21 +30,35 @@ This section details the modular architecture of our 3-D spatial-understanding s
     }
     \caption{System sequence diagram showing the interaction flow between components. The \texttt{LiveAgent} orchestrates user interaction and tool calls, \texttt{GeminiAABBDetSeg} produces zero-shot detections, \texttt{GeomProc} enriches them with 3-D geometry, and \texttt{DetCache} maintains temporal coherence across frames.}
     \label{fig:system-arch}
-\end{figure}%
+\end{figure}
 
-The architecture follows an asynchronous \emph{actor pattern} in which each component runs in its own task and exchanges typed messages:
-\begin{enumerate}
-    \item \textbf{LiveAgent} receives user queries (spoken or textual) and decides, through a finite-state machine, whether  qualitative reasoning suffices or quantitative tool calls are required.
-    \item \textbf{GeminiAABBDetSeg} converts an RGB image into raw axis-aligned bounding boxes (AABBs), segmentation masks, and class labels via zero-shot prompting of the Gemini~2.5 model (see Fig.~\ref{fig:gemini-seq}).
-    \item \textbf{GeomProc} projects the 2-D detections into metric 3-D space, estimates per-object depth, yaw, and height, and packages the results in an \texttt{AABBDetection} record (Algorithms~\ref{alg:gemini_detection}–\ref{alg:mask_processing}).
-    \item \textbf{DetCache} transforms previous detections into the current ego frame and serves them to the agent, enabling multi-view coherence.
-\end{enumerate}
-All data flow is strictly typed using \textsc{Pydantic} models, ensuring schema validation at every interface.
+\subsubsection{Live Agent}
 
+The Live Agent implements an asynchronous actor-based architecture that manages real-time interaction with users while orchestrating complex spatial analysis tasks. The component operates through a finite state machine that coordinates tool execution, response generation, and user communication without exposing intermediate processing steps.
 
-\subsection{Spatial Processing Pipeline}
+\paragraph{Actor Pattern Implementation.}
 
-The following steps describe how a single RGB-D frame is transformed into structured 3D detections that can be used for navigation.
+The actor pattern (\autoref{fig:actor-pattern-component}) ensures thread-safe communication through typed message passing. Commands (\texttt{AskCmd}, \texttt{AudioCmd}, \texttt{SetFrameCmd}) are queued from the user interface thread, while events (\texttt{TextEvt}, \texttt{AudioEvt}, \texttt{DetectionsEvt}, \texttt{ErrorEvt}) are emitted to update the interface. This design prevents race conditions and enables responsive user interaction while background processing tasks execute asynchronously.
+
+The agent maintains separate queues for incoming commands and outgoing events, with a dedicated asyncio event loop running in a background thread. This architecture allows concurrent operations, such as processing user queries while maintaining active audio streams for voice interaction.
+
+\paragraph{FSM for Interaction Management.}
+
+The agent employs a finite state machine with three primary states: \texttt{COLLECT\_FIRST} to capture intermediate outputs, \texttt{WAIT\_TOOL} during tool execution, and \texttt{COLLECT\_FINAL} for response generation. This state management ensures that tool outputs are processed internally before presenting final results to users to maintain a natural conversation flow.
+
+When users pose spatial queries, the agent analyzes requests to determine whether qualitative description suffices or quantitative tool invocation is required. Keywords such as "where," "distance," "how far," and "spatial relationship" trigger tool usage, while general scene descriptions rely on the vision-language model's inherent capabilities.
+
+The Live Agent implements a simple finite state machine (FSM) to manage the interaction flow, allowing it to ``reason'' about the current state and decide when to call tools or respond to user queries.
+It maintains separate queues for incoming commands and outgoing events, with a dedicated asyncio event loop running in a background thread. This architecture allows concurrent operations, such as processing user queries while maintaining active audio streams for voice interaction. The \texttt{GeminiLiveAgent} together with related classes is depicted in \autoref{fig:live-agent-component}.
+
+\paragraph{Tool Integration.}
+
+The agent is given two primary tools for spatial analysis: \texttt{run\_aabb\_detection} for object detection and spatial analysis, and \texttt{get\_last\_detections} for retrieving cached detection results into the current ego frame. The detection tool supports four operational modes: \texttt{subset} for specific object queries, \texttt{hazards} for safety assessment, \texttt{navigation\_landmarks} for wayfinding, and \texttt{path\_description} for comprehensive route planning.
+
+Tool responses are structured according to predefined schemas that include 3D coordinates in ego-centric reference frames, depth measurements in meters, directional information using intuitive clock notation (12 o'clock = straight ahead), and height measurements relative to the detected ground plane. This standardization enables consistent spatial reasoning across different query types and interaction modalities.
+
+The system employs a relatively low temperature setting (0.1 \( \dots \) 0.2) to promote adherence to tool usage instructions and reduce hallucination. While code execution capabilities are available for spatial computations like pair-wise distances, the system primarily relies on structured tool calls to ensure predictable and reliable spatial analysis.
+
 
 \subsubsection{Dataset Loader}
 The \texttt{StrayDataset} provides frames through its \texttt{\_{}\_{}getitem\_{}\_} method. It loads the RGB image \(\I\), the depth map \(\Z\), adapts the intrinsics \(\K\), retrieves the camera pose \(\T_{WC}\) and optionally estimates the ground plane \((\nhat,d)\). The fields are returned in a \texttt{DatasetOut} structure.
@@ -64,28 +80,16 @@ The \texttt{StrayDataset} provides frames through its \texttt{\_{}\_{}getitem\_{
 \end{algorithmic}
 \end{algorithm}
 
-Estimating the height of an object relative to the ground plane employs the hessian normal form of the plane.
-When enabled, the ground plane is estimated via RANSAC following the procedure described in~\autoref{alg:ground_plane}.
+\subsection{Scene Understanding Pipeline}
 
-The depth map is converted to a point cloud, and RANSAC is applied to find the best-fitting plane. The resulting plane normal \(\nhat\) and distance \(d\) are used to describe the ground plane in the world frame. The plane equation is given by
-
-this allows
-\begin{equation}
-    \label{eq:ground_plane}
-    \nhat^{\top}\mathbf{x} + d = 0 .
-\end{equation}
+The scene understanding pipeline (\autoref{fig:scene-understanding-component}) transforms RGB images into structured object detections through zero-shot prompting of Gemini 2.5. This component handles the complex process of extracting semantic and geometric information from visual input without requiring task-specific training.
 
 \subsubsection{Gemini Detection}
-The RGB frame is sent to Gemini, yielding raw 2-D boxes and segmentation masks. Each detection is processed as follows.
-A resized RGB image, the detection \texttt{mode}, and an \texttt{agent\_prompt} are passed to Gemini~2.5.  The VLM returns JSON conforming to a minimal schema (\textit{label}, \textit{box\_2d}, \textit{mask}).  Malformed or schema-violating outputs will trigger a validation error in the datacentric pipeline, where the validation is performed within the \emph{validator} methods of the respective \textsc{Pydantic} models.
-% <From Presentation: extract information and transform into a qualitative flowing text>
-% • Prompt & RGB-Image → Gemini → {label, AABB, base64 mask}
-% • Structured Output Parsing & Multiple Validation steps via Pydantic
-% → retry if failed
-% • Reasoning for complex detection mode (path_description)
-% </From Presentation: extract information and transform into a qualitative flowing text>
-% TODO: Refer to both the algorithm and the figure below, text should wrap around the algorithm and the figure
-%  TODO: Explain the flow chart within the figure!
+
+The pipeline sends an RGB image along with detection mode specifications and user prompts to Gemini~2.5. The vision-language model returns a JSON list conforming to a minimal schema containing object labels, normalized bounding box coordinates, and base64-encoded segmentation masks. \\
+
+Multiple validation steps are implemented through Pydantic model validators to handle malformed or schema-violating outputs. When validation failures occur, the system automatically retries the detection request up to a configurable number of attempts, ensuring robust operation despite occasional model inconsistencies.
+This procedure is illustrated in \autoref{fig:gemini-seq}.
 \begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{figures/gemini_seq.pdf}
@@ -93,10 +97,22 @@ A resized RGB image, the detection \texttt{mode}, and an \texttt{agent\_prompt} 
     \label{fig:gemini-seq}
 \end{figure}
 
-\subsubsection{Geometric Processing}
-The detections and segmentations provided by Gemini are processed to extract 3-D attributes such as depth, yaw, and height. The geometric processing pipeline is illustrated in \autoref{fig:geom-pipeline} and described in Algorithm~\ref{alg:gemini_detection}.
+For complex detection modes such as \texttt{path\_description}, the system employs additional reasoning steps where the model analyzes spatial relationships between detected objects to generate comprehensive route descriptions. This multi-step approach combines object detection with spatial reasoning to provide actionable navigation guidance.
 
-\begin{algorithm}[H]
+
+\subsubsection{Geometric Processing}
+The spatial processing pipeline transforms 2D detection results into canonicalized 3D representations suitable from which further navigational guidance can be derived. This component employs common computer vision procedures to extract depth, orientation, and height information from RGB-D sensor data.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/geom_pipeline.png}
+    \caption{Geometric processing pipeline for 3D detections.}
+    \label{fig:geom-pipeline}
+\end{figure}
+
+\autoref{fig:geom-pipeline} illustrates geometric processing pipeline, and is furthermore described in~\autoref{alg:gemini_detection}.
+
+\begin{algorithm}[ht]
 \caption{Processing Gemini Detections}
 \label{alg:gemini_detection}
 \begin{algorithmic}[1]
@@ -111,14 +127,10 @@ The detections and segmentations provided by Gemini are processed to extract 3-D
 \end{algorithmic}
 \end{algorithm}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\linewidth]{figures/geom_pipeline.png}
-    \caption{Geometric processing pipeline for 3D detections.}
-    \label{fig:geom-pipeline}
-\end{figure}
 
 \subsubsection{Mask Processing}
+
+Mask processing begins with probabilistic masks from the vision-language model, which are first aligned with bounding box coordinates and resized to match the full image resolution. Binary thresholding converts probability values to binary masks, followed by morphological erosion using a \(3 \times 3\) structuring element to reduce the impact of false positives in the segmentation masks. This process is detailed in \autoref{alg:mask_processing}.
 
 \begin{algorithm}[H]
 \caption{Process Mask: Thresholding, Resizing, and Erosion}
@@ -140,8 +152,9 @@ The detections and segmentations provided by Gemini are processed to extract 3-D
 \end{algorithm}
 
 
-\subsubsection{Compute Depth}
-% TODO: add qualitative description
+\subsubsection{Depth Computation}
+Depth computation employs a robust statistical method to handle noisy depth measurements. The system extracts valid depth values from the masked region and computes depth statistics using Median Absolute Deviation (MAD) for outlier rejection:
+
 \begin{equation}
     d_{MAD} = \min\bigl\{d \in \mathcal{D}_{\text{valid}} : L \le d \le U \bigr\}
 \end{equation}
@@ -155,7 +168,11 @@ L &= m - k_{L} \cdot \mathrm{MAD},\quad U = m + k_{U} \cdot \mathrm{MAD},\\
 \end{aligned}
 \end{equation}
 
-\subsubsection{Computing 3D Center Points}
+The final depth estimate \(d_{MAD}\) is the minimum valid depth value within the computed bounds \([L, U]\), providing robustness against depth sensor artifacts, occlusion effects and false positive mask regions.
+
+\subsubsection{3D Center Point Computation}
+
+Object center points are computed in both image and world coordinates to support spatial reasoning. The 2D centroid is determined using median coordinates of the eroded mask to ensure robustness against asymmetric object shapes:
 
 \begin{equation}
 \mathbf{p}_{\mathrm{centroid}}
@@ -175,6 +192,8 @@ v_{\mathrm{centroid}}
 \label{eq:centroid}
 \end{equation}
 
+The 3D center point in camera coordinates is computed by back-projecting the 2D centroid using the robust depth estimate and camera intrinsics:
+
 \begin{equation}
 \mathbf{p}^c
 =
@@ -186,27 +205,27 @@ v_{\mathrm{centroid}}\\[4pt]
 \end{bmatrix}
 \end{equation}
 
-\subsubsection{Estimating Clock Direction}
-Given a 3D point \( \pc \) in camera coordinates the yaw angle \(\psi_{\text{deg}}\) and clock position \(\psi_{\text{clk}}\) are computed as follows:
+\subsubsection{Directional Estimation}
+Object orientation relative to the camera is expressed using both angular and clock-based notation for intuitive user interaction. The yaw angle \(\psi_{\text{deg}}\) represents rotation around the vertical axis in the horizontal plane, computed from the 3D position:
 
-
-% TODO: need to mention here, that psi is the angle around the verical axis and hence in the horizontal (x, z) plane
-$$
+\begin{equation}
 \begin{aligned}
 \psi_{\text{deg}} &= \arctan2\left(x^c, z^c\right) \cdot \frac{180°}{\pi} \\
 \psi_{\text{clk}} &= \left\lfloor \frac{\psi_{\text{deg}}}{30°} + 0.5 \right\rfloor \bmod 12
 \end{aligned}
-$$
+\end{equation}
+
+The clock position \(\psi_{\text{clk}}\) provides an intuitive directional reference where 12 o'clock corresponds to straight ahead, 3 o'clock to the right, and 9 o'clock to the left.
 
 \subsubsection{Estimating Height Relative to the Ground}
-With ground plane parameters \((\nhat,d)\) the height of a point \(\mathbf{p}\) is
+Height estimation relative to the ground plane utilizes the RANSAC-derived plane parameters. For any 3D point \(\mathbf{p}\), the height above the ground plane is computed as:
 \begin{equation}
 h = \nhat^{\top} \mathbf{p} + d.
 \label{eq:height}
 \end{equation}
 
 % \subsubsection{
-\subsubsection{Describing Relative Motion}
+\subsubsection{Inter-Frame Coherence}
 % Provide the LiveAgent with description of relative movement, when frames change:
 
 
@@ -217,7 +236,9 @@ h = \nhat^{\top} \mathbf{p} + d.
 % Previous detections can be retrieved in current ego frame.
 
 
-The following steps describe how a motion between two SE(3) \emph{ego poses} is described such that it can be injected into the model context. The transformation from one pose \(\T_A\) to another \(\T_B\) is given by:
+To maintain spatial coherence across temporal sequences, the system implements SE(3) transformations that convert detection coordinates between different camera poses. When frames change, relative motion is computed and communicated to the Live Agent through descriptive system messages.
+
+The transformation from pose \(\T_A\) to pose \(\T_B\) is computed as:
 \begin{equation}
 \T_{rel} = \T_B \T_A^{-1},\quad
 d = \|\boldsymbol{\tau}_{rel}\|,\quad
@@ -229,55 +250,8 @@ The translation vector \(\boldsymbol{\tau}_{rel} = \T_{rel}[:3, 3]\) is the rela
 We then provide the model with a system message, that describes the relative motion, and also provide it with an overview of all cached detections from previous frames.
 
 
-\subsubsection{Resulting Structure}
-After processing, all fields are stored in \texttt{AABBDetection}: normalized box, mask, depth statistics, 3-D center, rotation in degrees and clock hours, and height from the ground plane.  These detections across frames are transformed into the ego frame for path planning.
+\subsubsection{Data Structure Integration}
 
-% \subsection{System Architecture}
-% % Content about system architecture (Jan)
-% % - Sequence diagram to explain different use cases/data flow in the application
-% % - How we use Live API, Gemini Pro, etc.
-% % - Overall system design and components
+After processing, all spatial attributes are encapsulated in structured \texttt{AABBDetection} objects that include normalized bounding boxes, processed masks, depth statistics, 3D center coordinates, rotation measurements in both degrees and clock notation, and height relative to the ground plane. These standardized data structures (\autoref{fig:data-contracts-component}) enable consistent downstream processing and support the various operational modes of the Live Agent.
 
-% \subsection{Core Features}
-
-% \subsubsection{Full Scene Description}
-% % Content about comprehensive scene understanding and description
-% % - Scene analysis approach
-% % - Information extraction methods
-% % - Description generation
-
-% \subsubsection{Spatial Information on Individual Objects}
-% % Content about object-level spatial processing
-% % - Rotation: Object orientation detection
-% % - Depth: Distance measurements
-% % - 3D Points: Spatial coordinate calculation
-% % - Erosion: Image processing techniques
-% % - MAD: Median Absolute Deviation calculations
-
-% \subsection{Advanced Spatial Processing}
-
-% \subsubsection{Caching of Detections}
-% % Content about performance optimization through caching
-% % - Detection caching strategy
-% % - Performance improvements
-% % - Memory management
-
-% \subsubsection{SE(3) Transformations}
-% % Content about spatial transformations
-% % - SE(3) into Ego Frame: Transformation to ego-centric coordinates
-% % - SE(3) for Frame Change: Model context transformation
-% % - Mathematical foundations
-
-% \subsubsection{Height Information with RANSAC}
-% % Content about ground plane detection
-% % - RANSAC implementation for ground plane detection
-% % - Height calculation methods
-% % - Accuracy and robustness
-
-% \subsection{Path Description}
-% % Content about navigation guidance generation
-% % - Path analysis and description
-% % - Navigation instruction generation
-% % - User interaction design
-
-% \subsection{Path Description}
+The resulting detections can be efficiently cached and transformed across frames, supporting multi-view spatial reasoning and enabling the system to reference previously detected objects without recomputation, thereby improving both performance and temporal consistency in navigation assistance.

@@ -1,11 +1,8 @@
 \section{Discussion}
 
-\subsection{Results Analysis}
-% Content about results analysis
-% - Discuss results in relation to other work described above
-% - Performance comparison with existing systems
-% - Strengths and achievements of our approach
+We have successfully implemented a chat system that is capable of providing qualitative spatial descriptions in real-time, as well as canonicalized spatial information about the scene, such as the height of objects, their distance, or orientation to the user, and their pair-wise spatial relationships.\\
 
+The system is capable of detecting obstacles in the user's path and providing navigation assistance by describing the environment in a way that is understandable for visually impaired users. Furtermore, it achieves a primitive form of spatio-temporal coherence through our relative movement descriptions and our ego-centric caching mechanism.
 % \subsection{Limitations}
 % -
 % % Content about system limitations (Jan)
@@ -47,19 +44,7 @@
     \item \textbf{Tool refusal} -- answers like ``I cannot detect what I cannot see'' instead of calling the detection tool.
     \item \textbf{Wrong tool usage} -- the model is instructed to always use cached detections if available, but often it will still use the detection tool instead of the cached results, leading to unnecessary increased latency.
     \item \textbf{Computational overhead} -- the current pipeline is not optimized for latency, but for experimentation and hence performs many non-esential computations in rather inefficent ways, e.g. the RGB frame is plotted with segmentation masks and many non-essential features computed each frame.
-    \item \textbf{Limited quantitative reasoning} -- We have mostly tested the Agent with \texttt{gemini-2.0-flash-live-001} as the live model. While it can provide simple qualitative descriptions, these are often vague and imprecise and incomplete.
+    \item \textbf{Limited quantitative reasoning} -- We have mostly tested the Agent with \texttt{gemini-2.0-flash-live-001} as the live model. While it can provide simple qualitative descriptions, these are often vague and imprecise and incomplete, see \autoref{ssec:lack-hazard-awareness}.
+    \item \textbf{Error handling} -- Some errors are not being handled gracefully.
 \end{description}
-
-
-\subsection{Potential Future Work}
-% Content about future improvements
-% - Batched requests for improved efficiency
-% - Ensemble methods for better accuracy
-% - Cut down to essential features to improve latency
-% - Fine-tuning for domain-specific improvements
-% - Tune parameters and (system) prompts for optimization
-% - Implement results into iOS app for mobile deployment
-We have mostly worked with the preview versions of Gemini 2.5 family, however, the final Gemini 2.5 Pro, Flash models and even a new Gemini 2.5 Pro Live model are now available, it would be worthwhile to inspect how these models might have improved over the preview versions.
-
-Fine-tuning of the agentic model and image understanding models might yield significant improvements in their consistency in terms of instruction following. However, we cannot imagine, that fine-tuning the segmentation mask could have any impact as the model has been trained on internet-scale data and we do not assume a significant domain shift between its training data and our use case.In~\cite{googleFinetuning2025} it is mentioned that as little as 20 examples can improve the consistency of the model's responses, to ensure that that either model follows the instructions and satisfies the schema requirements well.
 

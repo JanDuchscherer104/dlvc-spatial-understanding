@@ -45,71 +45,55 @@
 %%
 %%
 \documentclass[sigconf]{acmart}
+
+\acmConference[DLVC SS 2025]{Deep Learning in Visual Computing - Summer Semester 2025}{July 2025}{Munich, Germany}
+\acmYear{2025}
+\acmISBN{} % Remove ISBN
+\acmDOI{} % Remove DOI
+
+%% Enable page numbers in footer
+\settopmatter{printfolios=true}
+
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
 \AtBeginDocument{%
   \providecommand\BibTeX{{%
     Bib\TeX}}}
 
+%% Additional packages for subfigures
 \usepackage{subcaption}
 \usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{booktabs}
 \usepackage{listings}
+
+%% TikZ packages for sequence diagrams
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit, backgrounds}
 \usepackage{xcolor}
 
+
+%%
+%% Mathematical notation - centralized symbol definitions
+%%
+
+% Notation commands
 \newcommand{\notation}[2]{\ensuremath{#1} & #2 \\}
-\newcommand{\hatv}[1]{\hat{\boldsymbol{#1}}}
-\newcommand{\I}{\mathbf{I}}
-\newcommand{\Z}{\mathbf{Z}}
-\newcommand{\K}{\mathbf{K}}
-\newcommand{\T}{\mathbf{T}}
-\newcommand{\Ms}{\mathbf{M}_s}
-\newcommand{\bbox}{\mathbf{b}}
-\newcommand{\nhat}{\hatv{n}}
-\newcommand{\pc}{\mathbf{p}^c}
-\newcommand{\D}{\mathbf{D}}
-\newcommand{\Pcloud}{\mathbf{P}}
-\newcommand{\taurel}{\boldsymbol{\tau}_{rel}}
+\newcommand{\hatv}[1]{\hat{\boldsymbol{#1}}} % Unit vectors/normalized tensors
 
+% Commonly used symbols
+\newcommand{\I}{\mathbf{I}}                   % RGB image
+\newcommand{\Z}{\mathbf{Z}}                   % Depth map
+\newcommand{\K}{\mathbf{K}}                   % Camera intrinsics matrix
+\newcommand{\T}{\mathbf{T}}                   % Transformation matrix
+\newcommand{\Ms}{\mathbf{M}_s}                % Segmentation mask
+\newcommand{\bbox}{\mathbf{b}}                % Bounding box
+\newcommand{\nhat}{\hatv{n}}                  % Ground plane normal (unit vector)
+\newcommand{\pc}{\mathbf{p}^c}                % 3D point in camera coordinates
+\newcommand{\D}{\mathbf{D}}                   % Depth values
+\newcommand{\Pcloud}{\mathbf{P}}              % Point cloud
+\newcommand{\taurel}{\boldsymbol{\tau}_{rel}} % Relative translation vector
 
-
-%%
-%% Submission ID.
-%% Use this when submitting an article to a sponsored event. You'll
-%% receive a unique submission ID from the organizers
-%% of the event, and this ID should be used as the parameter to this command.
-%%\acmSubmissionID{123-A56-BU3}
-
-%%
-%% For managing citations, it is recommended to use bibliography
-%% files in BibTeX format.
-%%
-%% You can then either use BibTeX with the ACM-Reference-Format style,
-%% or BibLaTeX with the acmnumeric or acmauthoryear sytles, that include
-%% support for advanced citation of software artefact from the
-%% biblatex-software package, also separately available on CTAN.
-%%
-%% Look at the sample-*-biblatex.tex files for templates showcasing
-%% the biblatex styles.
-%%
-
-%%
-%% The majority of ACM publications use numbered citations and
-%% references.  The command \citestyle{authoryear} switches to the
-%% "author year" style.
-%%
-%% If you are preparing content for an event
-%% sponsored by ACM SIGGRAPH, you must use the "author year" style of
-%% citations and references.
-%% Uncommenting
-%% the next command will enable that style.
-%%\citestyle{acmauthoryear}
-
-
-%%
 %% end of the preamble, start of the body of the document source.
 \begin{document}
 
@@ -117,6 +101,7 @@
 %% The "title" command has an optional parameter,
 %% allowing the author to define a "short title" to be used in page headers.
 \title{3D Spatial Scene Description for and Guidance for Visually Impaired People}
+
 
 \author{Jan Duchscherer}
 \email{j.duchscherer@hm.edu}
@@ -140,7 +125,7 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-
+This paper presents a 3D spatial understanding system designed to provide navigation assistance for visually impaired individuals. Our approach combines computer vision techniques with large language models to create an interactive audio guidance system that can describe spatial relationships and provide real-time navigation instructions. The system utilizes RANSAC-based ground plane detection, semantic segmentation, and spatial reasoning to understand complex 3D environments and communicate spatial information effectively~\cite{spatialvlmChen2024}.
 \end{abstract}
 
 %%
@@ -154,10 +139,18 @@ Human-Computer Interaction (HCI), Obstacle Avoidance}
 %% information and the body of the document, and typically spans the
 %% page.
 \begin{teaserfigure}
-  \includegraphics[width=\textwidth]{sampleteaser}
-  \caption{Seattle Mariners at Spring Training, 2010.}
-  \Description{Enjoying the baseball game from the third-base
-  seats. Ichiro Suzuki preparing to bat.}
+  \begin{subfigure}{0.48\textwidth}
+    \includegraphics[width=\textwidth]{figures/ransac.png}
+    \caption{RANSAC ground plane detection for height estimation.}
+    \label{fig:teaser:ransac}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.48\textwidth}
+    \includegraphics[width=\textwidth]{figures/path_desc.png}
+    \caption{Segmentations of objects relevant for navigating to the entrance of the hair salon.}
+    \label{fig:teaser:path}
+  \end{subfigure}
+  \caption{Overview of our 3D spatial understanding system: (a) Ground plane detection using RANSAC algorithm with object detection and spatial relationships, and (b) Interactive guidance system providing spatial descriptions and navigation assistance.}
   \label{fig:teaser}
 \end{teaserfigure}
 
@@ -190,7 +183,11 @@ To Tobias, for his support and guidance throughout this project.
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{sample-base}
 
-\appendix
+\input{sections/appendix}
+
+%%
+%% Notation table
+%%
 
 \end{document}
 \endinput

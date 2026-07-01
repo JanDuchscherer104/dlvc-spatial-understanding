@@ -145,6 +145,7 @@ The Actor Pattern (\autoref{fig:actor-pattern-component}) implements thread-safe
 \autoref{fig:aabb-points} shows relatively good AABB detections using Gemini 2.0. Instead of requesting full segmentation masks, the model was asked to provide representative points within bounding boxes. While this approach could offer speed advantages, the resulting points often fell randomly within the boxes and not necessarily on the object itself, rendering the output largely unusable. It remains to be seen whether Gemini 2.5 improves this behavior.\\
 
 \subsubsection*{Lack of Hazard Awareness}
+\label{ssec:lack-hazard-awareness}
 
 \begin{figure}[H]
     \centering

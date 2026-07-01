@@ -5,17 +5,17 @@
 %% The original source files were:
 %%
 %% samples.dtx  (with options: `all,proceedings,bibtex,sigconf')
-%% 
+%%
 %% IMPORTANT NOTICE:
-%% 
+%%
 %% For the copyright see the source file.
-%% 
+%%
 %% Any modified versions of this file must be renamed
 %% with new filenames distinct from sample-sigconf.tex.
-%% 
+%%
 %% For distribution of the original source see the terms
 %% for copying and modification in the file samples.dtx.
-%% 
+%%
 %% This generated file may be distributed as long as the
 %% original source files, as listed above, are part of the
 %% same distribution. (The sources need not necessarily be
@@ -50,6 +50,29 @@
 \AtBeginDocument{%
   \providecommand\BibTeX{{%
     Bib\TeX}}}
+
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit, backgrounds}
+\usepackage{xcolor}
+
+\newcommand{\notation}[2]{\ensuremath{#1} & #2 \\}
+\newcommand{\hatv}[1]{\hat{\boldsymbol{#1}}}
+\newcommand{\I}{\mathbf{I}}
+\newcommand{\Z}{\mathbf{Z}}
+\newcommand{\K}{\mathbf{K}}
+\newcommand{\T}{\mathbf{T}}
+\newcommand{\Ms}{\mathbf{M}_s}
+\newcommand{\bbox}{\mathbf{b}}
+\newcommand{\nhat}{\hatv{n}}
+\newcommand{\pc}{\mathbf{p}^c}
+\newcommand{\D}{\mathbf{D}}
+\newcommand{\Pcloud}{\mathbf{P}}
+\newcommand{\taurel}{\boldsymbol{\tau}_{rel}}
 
 
 
@@ -95,9 +118,8 @@
 %% allowing the author to define a "short title" to be used in page headers.
 \title{3D Spatial Scene Description for and Guidance for Visually Impaired People}
 
-
-\author{Lukas Ederer}
-\email{ederer0@hm.edu}
+\author{Jan Duchscherer}
+\email{j.duchscherer@hm.edu}
 \affiliation{
   \institution{University of Applied Sciences Munich}
   \city{Munich}
@@ -105,8 +127,8 @@
   \country{Germany}
 }
 
-\author{Jan Duchscherer}
-\email{j.duchscherer@hm.edu}
+\author{Lukas Ederer}
+\email{ederer0@hm.edu}
 \affiliation{
   \institution{University of Applied Sciences Munich}
   \city{Munich}
@@ -124,8 +146,8 @@
 %%
 %% Keywords. The author(s) should pick words that accurately describe
 %% the work being presented. Separate the keywords with commas.
-\keywords{3D Spatial Understanding, Assistive Technology, Visually Impaired, Gemini, 
-Large Language Models (LLMs), Interactive Audio Guidance, Semantic Segmentation, Mobile Navigation, 
+\keywords{3D Spatial Understanding, Assistive Technology, Visually Impaired, Gemini,
+Large Language Models (LLMs), Interactive Audio Guidance, Semantic Segmentation, Mobile Navigation,
 Human-Computer Interaction (HCI), Obstacle Avoidance}
 
 %% A "teaser" image appears between the author and affiliation
